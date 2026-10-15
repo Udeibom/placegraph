@@ -10,8 +10,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@placegraph/types": "*",
-    "zod": "^3.23.8"
+    "@placegraph/types": "^0.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
