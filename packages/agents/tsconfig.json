@@ -7,7 +7,13 @@
     "declaration": true,
     "skipLibCheck": true,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@placegraph/types": ["packages/types/src"],
+      "@placegraph/core": ["packages/core/src"],
+      "@placegraph/qloo": ["packages/qloo/src"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]

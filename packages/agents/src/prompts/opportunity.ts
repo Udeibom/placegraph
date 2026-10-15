@@ -23,4 +23,4 @@ For each opportunity, provide:
 - rationale explaining reasoning chain
 - be explicit about what Qloo established vs inferred
 
-Return structured JSON matching Opportunity schema. Be conservative about certainty.
+Return structured JSON matching Opportunity schema. Be conservative about certainty.`
