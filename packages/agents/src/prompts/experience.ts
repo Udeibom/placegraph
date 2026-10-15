@@ -2,13 +2,13 @@ export const EXPERIENCE_REQ_PROMPT = `Convert selected strategy to explicit expe
 
 Strategy: {strategy}
 Project: {project}
-Cultural context: {qlooContext}
+Cultural/Qloo context: {qlooContext}
 
-For each requirement:
-- clear, actionable requirement
-- rationale (why needed)
-- priority (low/medium/high)
-- source (evidence or inference)
+Generate concrete, actionable experience requirements. For each:
+- requirement (clear statement of what experience must do/achieve)
+- rationale (why - link to strategy/opportunity/evidence)
+- priority (low|medium|high)
+- source (evidence|inference)
 
-Show chain: cultural evidence -> opportunity -> strategy -> experience req.
-Preserve provenance.`
+Requirements must cover: arrival/identity, spatial needs, flexibility (e.g. events), operations, atmosphere, audience fit.
+Preserve traceability. Return JSON array matching ExperienceRequirement schema.`
