@@ -5,3 +5,7 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+module.exports = {
+  transpilePackages: ['@placegraph/types', '@placegraph/core', '@placegraph/qloo', '@placegraph/agents', '@placegraph/db']
+}
