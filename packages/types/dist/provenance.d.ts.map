@@ -1,0 +1,1 @@
+{"version":3,"file":"provenance.d.ts","sourceRoot":"","sources":["../src/provenance.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AAExB,eAAO,MAAM,oBAAoB,+FAO/B,CAAC;AAEH,MAAM,MAAM,cAAc,GAAG,CAAC,CAAC,KAAK,CAAC,OAAO,oBAAoB,CAAC,CAAC;AAElE,eAAO,MAAM,oBAAoB;;;;;;;;;;;;;;;;;;;;;;;;;;;EAS/B,CAAC;AAEH,MAAM,MAAM,cAAc,GAAG,CAAC,CAAC,KAAK,CAAC,OAAO,oBAAoB,CAAC,CAAC"}
