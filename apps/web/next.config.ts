@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: [
+    '@placegraph/types',
+    '@placegraph/core',
+    '@placegraph/qloo',
+    '@placegraph/agents',
+    '@placegraph/db'
+  ]
 };
 
 export default nextConfig;
-
-module.exports = {
-  transpilePackages: ['@placegraph/types', '@placegraph/core', '@placegraph/qloo', '@placegraph/agents', '@placegraph/db']
-}
