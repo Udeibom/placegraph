@@ -18,8 +18,14 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@placegraph/types": ["../../packages/types/src"],
+      "@placegraph/core": ["../../packages/core/src"],
+      "@placegraph/qloo": ["../../packages/qloo/src"],
+      "@placegraph/agents": ["../../packages/agents/src"],
+      "@placegraph/db": ["../../packages/db/src"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
