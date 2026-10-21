@@ -1,6 +1,0 @@
-{
-  "buildCommand": "npx turbo run build --filter=web",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "framework": null
-}
