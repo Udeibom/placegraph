@@ -1,6 +1,21 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "QLOO_API_KEY",
+    "QLOO_API_BASE_URL",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+    "GROQ_VISION_MODEL",
+    "HF_TOKEN",
+    "HF_MODEL",
+    "SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY",
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "PLACEGRAPH_DATA_DIR",
+    "VERCEL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
