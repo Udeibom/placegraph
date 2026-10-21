@@ -67,33 +67,8 @@
   --shadow-lg:      0 8px 32px rgba(28, 25, 23, 0.12), 0 2px 8px rgba(28, 25, 23, 0.06);
 }
 
-/* ─── Tailwind v4 theme registration ───────────────────────── */
-@theme inline {
-  --color-paper:          var(--paper);
-  --color-surface:        var(--surface);
-  --color-surface-raised: var(--surface-raised);
-  --color-ink:            var(--ink);
-  --color-ink-2:          var(--ink-2);
-  --color-muted:          var(--muted);
-  --color-muted-2:        var(--muted-2);
-  --color-line:           var(--line);
-  --color-line-2:         var(--line-2);
-  --color-accent:         var(--accent);
-  --color-accent-2:       var(--accent-2);
-  --color-accent-light:   var(--accent-light);
-  --color-qloo:           var(--qloo);
-  --color-inference:      var(--inference);
-  --color-assumption:     var(--assumption);
-  --color-external:       var(--external);
-  --color-constraint:     var(--constraint);
-  --font-sans:            var(--font-geist-sans);
-  --font-mono:            var(--font-geist-mono);
-  --font-serif:           "Libre Baskerville", Georgia, serif;
-  --animate-fade-in:      pg-fade-in var(--duration-slow) var(--ease-out) both;
-  --animate-slide-up:     pg-slide-up var(--duration-slow) var(--ease-out) both;
-  --animate-shimmer:      pg-shimmer 1.6s ease-in-out infinite;
-  --animate-pulse-dot:    pg-pulse-dot 1.4s ease-in-out infinite;
-}
+/* ─── Token aliases (for reference) ────────────────────────── */
+/* All tokens above are consumed via var(--token) in components  */
 
 /* ─── Keyframes ─────────────────────────────────────────────── */
 @keyframes pg-fade-in {
