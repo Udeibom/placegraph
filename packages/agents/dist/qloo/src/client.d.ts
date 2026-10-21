@@ -7,6 +7,7 @@ export interface QlooEntity {
     name: string;
     type?: string;
     domain?: string;
+    subtype?: string;
 }
 export interface QlooAffinity {
     target: string;
@@ -18,13 +19,22 @@ export interface QlooAffinity {
 export interface QlooRequestOptions {
     limit?: number;
     domains?: string[];
+    type?: string;
+    location?: string;
 }
 export declare class QlooClient {
     private baseUrl;
     private apiKey;
     constructor(config: QlooConfig);
-    private fetch;
+    private headers;
+    private get;
     searchEntities(query: string, opts?: QlooRequestOptions): Promise<QlooEntity[]>;
+    getInsights(opts: {
+        filterType: string;
+        entityIds?: string[];
+        locationQuery?: string;
+        take?: number;
+    }): Promise<any[]>;
     getAffinities(entity: string | {
         id?: string;
         name: string;
@@ -32,6 +42,8 @@ export declare class QlooClient {
     getCrossDomain(context: {
         entities: string[];
         audiences?: string[];
+        location?: string;
     }, opts?: QlooRequestOptions): Promise<any>;
 }
 export declare function createQlooClient(): QlooClient;
+export declare function hasQlooKey(): boolean;

@@ -1,16 +1,17 @@
-import { ProvenanceBuilder } from './provenance';
-export class AnalysisPipeline {
-    async run(input) {
-        const prov = new ProvenanceBuilder();
-        const root = prov.create('inference', 'Analysis pipeline initiated', { parentId: null });
-        prov.setRoot(root.id);
-        // Stub - will be filled with real logic in Phase 2/3
-        const opportunities = [];
-        const strategies = [];
-        return {
-            opportunities,
-            strategies,
-            provenance: prov.all()
-        };
-    }
+import { PIPELINE_STAGES } from '@placegraph/types';
+export { PIPELINE_STAGES };
+export function stageIndex(status) {
+    const map = {
+        draft: 0,
+        idle: 0,
+        analyzing: 1,
+        ready: 3,
+        strategy_selected: 4,
+        designing: 5,
+        designed: 6,
+        visualized: 7,
+        review: 8,
+        complete: 8
+    };
+    return map[status] ?? 0;
 }

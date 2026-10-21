@@ -4,6 +4,10 @@ export const ProjectTypeSchema = z.enum([
   'restaurant',
   'hotel',
   'retail',
+  'bar',
+  'cafe',
+  'office',
+  'mixed',
   'hospitality',
   'other'
 ]);
@@ -37,6 +41,7 @@ export const ProjectSchema = z.object({
   budgetRange: z.string().optional(),
   floorArea: z.string().optional(),
   floorPlanUrl: z.string().optional(),
+  workspaceId: z.string().optional(),
   audiences: z.array(AudienceSchema).default([]),
   constraints: z.array(ConstraintSchema).default([]),
   status: z.enum(['draft', 'analyzing', 'strategizing', 'designing', 'review', 'complete']).default('draft'),

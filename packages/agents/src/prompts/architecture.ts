@@ -1,14 +1,45 @@
-export const ARCHITECTURE_PROMPT = `Translate strategy + experience requirements to preliminary architectural concept.
+export const ARCHITECTURE_PROMPT = `Translate strategy + experience requirements into a preliminary architectural concept.
+This is conceptual, not construction documentation. Do not claim code compliance or engineering.
 
 Selected strategy: {strategy}
 Experience requirements: {requirements}
-Project (location, type, constraints, floor plan): {project}
+Project (location, type, constraints): {project}
+Floor-plan reading (drawing or brief — site-specific, not decoration): {floorPlan}
 Qloo context: {qlooContext}
+Evidence gate: {evidenceGate}
 
-Generate:
-1. Architectural decisions per zone (arrival, circulation, public, private, flexible, etc. as relevant)
-2. Spatial concept (zones, organization, materials direction, lighting, furniture strategy, exterior character)
-3. For each decision: why chain with provenance nodes (qloo_evidence/inference/assumption/decision), alternatives, constraints considered
+Return JSON:
+{
+  "decisions": [
+    {
+      "zone": "",
+      "decision": "",
+      "alternatives": [],
+      "constraintsConsidered": [],
+      "qlooEstablished": "",
+      "locallyEstablished": "",
+      "inferred": "",
+      "unverified": "",
+      "whyChain": [
+        { "kind": "qloo_evidence|inference|assumption|decision|constraint|external", "explanation": "" }
+      ]
+    }
+  ],
+  "concept": {
+    "organization": "",
+    "zones": [{"name":"","purpose":"","character":"","adjacency":""}],
+    "materials": [],
+    "lighting": [],
+    "furniture": [],
+    "circulation": "",
+    "exterior": "",
+    "opsNotes": [],
+    "layout": [{"name":"","x":0,"y":0,"w":20,"h":20,"purpose":""}]
+  }
+}
 
-Do NOT invent demand certainty. Distinguish evidence from inference. 
-Return structured JSON.`
+layout coordinates are percentages of the plan (0-100). They must reflect the floor-plan reading when usable, and must change with the strategy (not a generic restaurant diagram).
+
+Distinguish evidence from inference. Do not invent demand certainty.
+The architecture must change if the cultural objective changed — it is the visible consequence of the strategy.
+`;

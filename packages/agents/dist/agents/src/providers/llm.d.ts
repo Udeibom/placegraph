@@ -20,6 +20,12 @@ export interface LLMResponse {
 export declare class LLMProvider {
     private config;
     constructor(config: LLMConfig);
-    complete(messages: LLMMessage[], opts?: any): Promise<LLMResponse>;
+    get available(): boolean;
+    complete(messages: LLMMessage[], opts?: {
+        temperature?: number;
+        maxTokens?: number;
+        json?: boolean;
+    }): Promise<LLMResponse>;
+    completeVision(prompt: string, imageDataUrl: string): Promise<string>;
 }
 export declare function createLLMProvider(): LLMProvider;

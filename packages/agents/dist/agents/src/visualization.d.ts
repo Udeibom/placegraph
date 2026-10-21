@@ -1,5 +1,6 @@
-import { Project } from '@placegraph/types';
+import type { Project } from '@placegraph/types';
 import { ProvenanceBuilder } from '@placegraph/core';
+import { LLMProvider } from './providers/llm';
 export interface VisualizationInput {
     project: Project;
     strategy: any;
@@ -9,17 +10,20 @@ export interface VisualizationInput {
     useMock?: boolean;
     style?: string;
 }
+interface ViewPrompt {
+    label: string;
+    prompt: string;
+    negativePrompt: string;
+}
 export declare class VisualizationService {
     private llm;
-    private imageMock;
-    private image;
-    constructor(llm?: any, opts?: {
-        useMock?: boolean;
-    });
+    constructor(llm?: LLMProvider);
     generateVisualization(input: VisualizationInput): Promise<{
         prov: ProvenanceBuilder;
-        prompt: any;
-        images: any;
-        model: any;
+        prompt: string;
+        images: string[];
+        model: string;
+        views: ViewPrompt[];
     }>;
 }
+export {};

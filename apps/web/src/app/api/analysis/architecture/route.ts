@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentOrchestrator } from '@placegraph/agents';
 
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -9,10 +11,10 @@ export async function POST(req: NextRequest) {
       project: body.project,
       strategy: body.strategy,
       requirements: body.requirements,
-      useMock: true
+      useMock: body.useMock
     });
     return NextResponse.json(result);
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Architecture generation failed' }, { status: 400 });
   }
 }

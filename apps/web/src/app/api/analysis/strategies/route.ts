@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentOrchestrator } from '@placegraph/agents';
 
+export const maxDuration = 120;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -8,10 +10,10 @@ export async function POST(req: NextRequest) {
     const result = await orchestrator.generateStrategies({
       project: body.project,
       opportunities: body.opportunities || [],
-      useMock: true
+      useMock: body.useMock
     });
     return NextResponse.json(result);
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'Strategy generation failed' }, { status: 400 });
   }
 }

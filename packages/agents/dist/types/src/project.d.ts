@@ -54,6 +54,7 @@ export declare const ProjectSchema: z.ZodObject<{
     budgetRange: z.ZodOptional<z.ZodString>;
     floorArea: z.ZodOptional<z.ZodString>;
     floorPlanUrl: z.ZodOptional<z.ZodString>;
+    workspaceId: z.ZodOptional<z.ZodString>;
     audiences: z.ZodDefault<z.ZodArray<z.ZodObject<{
         name: z.ZodString;
         priority: z.ZodOptional<z.ZodNumber>;
@@ -109,6 +110,7 @@ export declare const ProjectSchema: z.ZodObject<{
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
     floorPlanUrl?: string | undefined;
+    workspaceId?: string | undefined;
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
 }, {
@@ -127,6 +129,7 @@ export declare const ProjectSchema: z.ZodObject<{
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
     floorPlanUrl?: string | undefined;
+    workspaceId?: string | undefined;
     audiences?: {
         name: string;
         priority?: number | undefined;

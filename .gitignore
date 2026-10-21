@@ -16,3 +16,5 @@ coverage
 tmp
 temp
 .turbo
+data
+apps/web/data

@@ -1,14 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getStore } from '@placegraph/db';
+import { generateId, nowIso } from '@placegraph/core';
+import type { Project } from '@placegraph/types';
+import { getWorkspaceId } from '@/lib/workspace';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET() {
-  return NextResponse.json({ projects: [], message: 'PlaceGraph API' });
+  const store = getStore();
+  const workspaceId = await getWorkspaceId();
+  return NextResponse.json({ projects: store.listProjects(workspaceId) });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    return NextResponse.json({ id: `proj_${Date.now()}`, ...body }, { status: 201 });
-  } catch (e) {
+    const now = nowIso();
+    const workspaceId = await getWorkspaceId();
+    const id = generateId('proj');
+    const store = getStore();
+    let floorPlanUrl = body.floorPlanUrl as string | undefined;
+    if (floorPlanUrl?.startsWith('data:')) {
+      floorPlanUrl = store.saveFloorPlan(id, floorPlanUrl);
+    }
+    const project: Project = {
+      id,
+      name: body.name || 'Untitled project',
+      workspaceId,
+      location: {
+        address: body.location?.address || '',
+        city: body.location?.city || '',
+        neighborhood: body.location?.neighborhood || '',
+        lat: body.location?.lat,
+        lng: body.location?.lng
+      },
+      projectType: body.projectType || 'restaurant',
+      objective: body.objective || '',
+      budgetRange: body.budgetRange,
+      floorArea: body.floorArea,
+      floorPlanUrl,
+      audiences: Array.isArray(body.audiences) ? body.audiences.filter((a: { name?: string }) => a.name) : [],
+      constraints: Array.isArray(body.constraints) ? body.constraints.filter((c: { key?: string }) => c.key) : [],
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now
+    };
+    store.saveProject(project);
+    return NextResponse.json(project, { status: 201 });
+  } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 }

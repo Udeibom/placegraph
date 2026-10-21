@@ -1,32 +1,19 @@
-import { Project, Opportunity, Strategy } from '@placegraph/types';
-import { ProvenanceBuilder } from './provenance';
+import { PIPELINE_STAGES } from '@placegraph/types';
 
-export interface PipelineInput {
-  project: Project;
-  locationContext?: any;
-  qlooContext?: any;
-}
+export { PIPELINE_STAGES };
 
-export interface PipelineOutput {
-  opportunities: Opportunity[];
-  strategies: Strategy[];
-  provenance: ReturnType<ProvenanceBuilder['all']>;
-}
-
-export class AnalysisPipeline {
-  async run(input: PipelineInput): Promise<PipelineOutput> {
-    const prov = new ProvenanceBuilder();
-    const root = prov.create('inference', 'Analysis pipeline initiated', { parentId: null });
-    prov.setRoot(root.id);
-
-    // Stub - will be filled with real logic in Phase 2/3
-    const opportunities: Opportunity[] = [];
-    const strategies: Strategy[] = [];
-
-    return {
-      opportunities,
-      strategies,
-      provenance: prov.all()
-    };
-  }
+export function stageIndex(status: string): number {
+  const map: Record<string, number> = {
+    draft: 0,
+    idle: 0,
+    analyzing: 1,
+    ready: 3,
+    strategy_selected: 4,
+    designing: 5,
+    designed: 6,
+    visualized: 7,
+    review: 8,
+    complete: 8
+  };
+  return map[status] ?? 0;
 }
