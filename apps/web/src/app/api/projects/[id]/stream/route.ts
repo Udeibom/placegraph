@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStore } from '@placegraph/db';
+import { getReadyStore } from '@placegraph/db';
 import { AgentOrchestrator } from '@placegraph/agents';
 import { nowIso } from '@placegraph/core';
 
@@ -14,8 +14,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const body = await req.json().catch(() => ({}));
   const action = (body.action as Action) ?? 'analyze';
 
-  const store = getStore();
-  const project = store.getProject(id);
+  const store = await getReadyStore();
+  const project = await store.getProject(id);
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const encoder = new TextEncoder();
@@ -37,14 +37,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           floorPlanUrl: store.floorPlanDataUrl(project) || project.floorPlanUrl,
         };
 
-        let analysis = store.getAnalysis(id);
+        let analysis = await store.getAnalysis(id);
         let savedProject = project;
 
         if (action === 'analyze') {
-          store.saveProject({ ...project, status: 'analyzing', updatedAt: nowIso() });
+          await store.saveProject({ ...project, status: 'analyzing', updatedAt: nowIso() });
           analysis = await orchestrator.analyze({ project: forAgent, guidance: body.guidance }, onProgress);
-          store.saveAnalysis(analysis);
-          savedProject = store.saveProject({ ...project, status: 'strategizing', updatedAt: nowIso() });
+          await store.saveAnalysis(analysis);
+          savedProject = await store.saveProject({ ...project, status: 'strategizing', updatedAt: nowIso() });
 
         } else if (action === 'design') {
           if (!analysis) throw new Error('No analysis to design from');
@@ -52,30 +52,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           if (strategyId) {
             // Persist strategy selection first
             const updated = { ...analysis, selectedStrategyId: strategyId };
-            store.saveAnalysis(updated);
+            await store.saveAnalysis(updated);
             analysis = updated;
           }
           analysis = await orchestrator.design(project, analysis, strategyId, body.guidance, onProgress);
-          store.saveAnalysis(analysis);
-          savedProject = store.saveProject({ ...project, status: 'designing', updatedAt: nowIso() });
+          await store.saveAnalysis(analysis);
+          savedProject = await store.saveProject({ ...project, status: 'designing', updatedAt: nowIso() });
 
         } else if (action === 'visualize') {
           if (!analysis) throw new Error('No analysis to visualize from');
           analysis = await orchestrator.visualize(project, analysis, onProgress);
-          store.saveAnalysis(analysis);
-          savedProject = store.saveProject({ ...project, status: 'complete', updatedAt: nowIso() });
+          await store.saveAnalysis(analysis);
+          savedProject = await store.saveProject({ ...project, status: 'complete', updatedAt: nowIso() });
 
         } else if (action === 'review') {
           if (!analysis) throw new Error('No analysis to review');
           if (!body.feedback) throw new Error('Feedback required');
           analysis = await orchestrator.review(project, analysis, String(body.feedback), onProgress);
-          store.saveAnalysis(analysis);
-          savedProject = store.saveProject({ ...project, status: 'review', updatedAt: nowIso() });
+          await store.saveAnalysis(analysis);
+          savedProject = await store.saveProject({ ...project, status: 'review', updatedAt: nowIso() });
 
         } else if (action === 'counterfactual') {
           if (!analysis) throw new Error('No analysis for counterfactual');
           analysis = await orchestrator.counterfactual(project, analysis);
-          store.saveAnalysis(analysis);
+          await store.saveAnalysis(analysis);
           savedProject = project;
         }
 

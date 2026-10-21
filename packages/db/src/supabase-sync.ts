@@ -49,11 +49,42 @@ export async function syncAnalysis(analysis: AnalysisSnapshot) {
   await upsert('analysis', analysis.projectId, undefined, analysis);
 }
 
-export async function loadRemoteStore(): Promise<Partial<StoreShape> | null> {
+export async function deleteRemote(kind: 'project' | 'analysis', id: string) {
+  const cfg = config();
+  if (!cfg) return;
+  try {
+    // The publishable key cannot DELETE rows (no RLS delete policy), so
+    // overwrite the row with a tombstone payload that loadRemoteStore ignores.
+    const res = await fetch(`${cfg.url}/rest/v1/placegraph_documents`, {
+      method: 'POST',
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        id: `${kind}:${id}`,
+        kind,
+        workspace_id: null,
+        payload: { __deleted: true },
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`Supabase delete failed [${res.status}]:`, text.slice(0, 200));
+    }
+  } catch (err) {
+    console.warn('Supabase delete failed:', err);
+  }
+}
+
+export async function loadRemoteStore(): Promise<(Partial<StoreShape> & { deletedIds: string[] }) | null> {
   const cfg = config();
   if (!cfg) return null;
   try {
-    const res = await fetch(`${cfg.url}/rest/v1/placegraph_documents?select=kind,payload&order=updated_at.desc`, {
+    const res = await fetch(`${cfg.url}/rest/v1/placegraph_documents?select=id,kind,payload&order=updated_at.desc`, {
       headers: {
         apikey: cfg.key,
         Authorization: `Bearer ${cfg.key}`
@@ -63,14 +94,16 @@ export async function loadRemoteStore(): Promise<Partial<StoreShape> | null> {
       console.warn('Supabase load failed:', res.status, await res.text().catch(() => ''));
       return null;
     }
-    const rows = (await res.json()) as { kind: string; payload: any }[];
+    const rows = (await res.json()) as { id: string; kind: string; payload: any }[];
     const projects: Record<string, Project> = {};
     const analyses: Record<string, AnalysisSnapshot> = {};
+    const deletedIds: string[] = [];
     for (const row of rows) {
-      if (row.kind === 'project' && row.payload?.id) projects[row.payload.id] = row.payload;
-      if (row.kind === 'analysis' && row.payload?.projectId) analyses[row.payload.projectId] = row.payload;
+      if (row.payload?.__deleted) deletedIds.push(row.id);
+      else if (row.kind === 'project' && row.payload?.id) projects[row.payload.id] = row.payload;
+      else if (row.kind === 'analysis' && row.payload?.projectId) analyses[row.payload.projectId] = row.payload;
     }
-    return { projects, analyses };
+    return { projects, analyses, deletedIds };
   } catch (err) {
     console.warn('Supabase load failed:', err);
     return null;

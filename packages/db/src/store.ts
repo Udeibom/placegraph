@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AnalysisSnapshot, Project } from '@placegraph/types';
-import { hasSupabase, loadRemoteStore, syncAnalysis, syncProject } from './supabase-sync';
+import { deleteRemote, hasSupabase, loadRemoteStore, syncAnalysis, syncProject } from './supabase-sync';
 
 export interface StoreShape {
   projects: Record<string, Project>;
@@ -9,6 +9,11 @@ export interface StoreShape {
 }
 
 const emptyStore = (): StoreShape => ({ projects: {}, analyses: {} });
+
+// How stale a non-forced remote hydration may be (ms)
+const HYDRATE_TTL = 5000;
+// Cooldown between forced (miss-triggered) hydrations (ms)
+const FORCED_HYDRATE_COOLDOWN = 500;
 
 function rootDir(): string {
   return (
@@ -39,7 +44,8 @@ function atomicWrite(file: string, contents: string) {
 export class PlaceGraphStore {
   private data: StoreShape = emptyStore();
   private loaded = false;
-  private remoteTried = false;
+  private hydrating: Promise<void> | null = null;
+  private lastHydrateAttempt = 0;
 
   load() {
     if (this.loaded) return;
@@ -60,15 +66,43 @@ export class PlaceGraphStore {
     this.loaded = true;
   }
 
-  async hydrateRemote() {
-    if (this.remoteTried || !hasSupabase()) return;
-    this.remoteTried = true;
+  /**
+   * Merge remote (Supabase) state into this instance's memory.
+   * Awaited by every route via getReadyStore(), and re-triggered on
+   * cache misses so a warm serverless instance never serves stale-only data.
+   */
+  hydrateRemote(opts: { force?: boolean } = {}): Promise<void> {
+    if (!hasSupabase()) return Promise.resolve();
+    if (this.hydrating) return this.hydrating;
+    const age = Date.now() - this.lastHydrateAttempt;
+    const cooldown = opts.force ? FORCED_HYDRATE_COOLDOWN : HYDRATE_TTL;
+    if (this.lastHydrateAttempt && age < cooldown) return Promise.resolve();
+    this.lastHydrateAttempt = Date.now();
+    this.hydrating = this.doHydrate().finally(() => {
+      this.hydrating = null;
+    });
+    return this.hydrating;
+  }
+
+  private async doHydrate() {
     this.load();
-    const remote = await loadRemoteStore();
-    if (!remote) return;
-    this.data.projects = { ...remote.projects, ...this.data.projects };
-    this.data.analyses = { ...remote.analyses, ...this.data.analyses };
-    this.persist();
+    try {
+      const remote = await loadRemoteStore();
+      if (!remote) return;
+      this.data.projects = { ...remote.projects, ...this.data.projects };
+      this.data.analyses = { ...remote.analyses, ...this.data.analyses };
+      for (const key of remote.deletedIds ?? []) {
+        const sep = key.indexOf(':');
+        if (sep < 0) continue;
+        const kind = key.slice(0, sep);
+        const id = key.slice(sep + 1);
+        if (kind === 'project') delete this.data.projects[id];
+        else if (kind === 'analysis') delete this.data.analyses[id];
+      }
+      this.persist();
+    } catch (err) {
+      console.warn('PlaceGraph remote hydration failed:', err);
+    }
   }
 
   private persist() {
@@ -79,27 +113,31 @@ export class PlaceGraphStore {
     }
   }
 
-  listProjects(workspaceId?: string): Project[] {
+  async listProjects(workspaceId?: string): Promise<Project[]> {
     this.load();
+    await this.hydrateRemote();
     return Object.values(this.data.projects)
       .filter((p) => !workspaceId || !p.workspaceId || p.workspaceId === workspaceId)
       .sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
   }
 
-  getProject(id: string): Project | null {
+  async getProject(id: string): Promise<Project | null> {
     this.load();
+    const hit = this.data.projects[id];
+    if (hit) return hit;
+    await this.hydrateRemote({ force: true });
     return this.data.projects[id] || null;
   }
 
-  saveProject(project: Project): Project {
+  async saveProject(project: Project): Promise<Project> {
     this.load();
     this.data.projects[project.id] = project;
     this.persist();
-    void syncProject(project);
+    await syncProject(project);
     return project;
   }
 
-  deleteProject(id: string) {
+  async deleteProject(id: string): Promise<void> {
     this.load();
     delete this.data.projects[id];
     delete this.data.analyses[id];
@@ -110,18 +148,23 @@ export class PlaceGraphStore {
     } catch {
       // ignore
     }
+    await deleteRemote('project', id);
+    await deleteRemote('analysis', id);
   }
 
-  getAnalysis(projectId: string): AnalysisSnapshot | null {
+  async getAnalysis(projectId: string): Promise<AnalysisSnapshot | null> {
     this.load();
+    const hit = this.data.analyses[projectId];
+    if (hit) return hit;
+    await this.hydrateRemote({ force: true });
     return this.data.analyses[projectId] || null;
   }
 
-  saveAnalysis(analysis: AnalysisSnapshot): AnalysisSnapshot {
+  async saveAnalysis(analysis: AnalysisSnapshot): Promise<AnalysisSnapshot> {
     this.load();
     this.data.analyses[analysis.projectId] = analysis;
     this.persist();
-    void syncAnalysis(analysis);
+    await syncAnalysis(analysis);
     return analysis;
   }
 
@@ -157,11 +200,26 @@ export class PlaceGraphStore {
 
 const globalForStore = globalThis as unknown as { __placegraphStore?: PlaceGraphStore };
 
+/**
+ * Synchronous access to the in-memory store. Only safe for local file reads
+ * (e.g. /api/files) — data may be stale or empty on a serverless instance
+ * that hasn't hydrated remote state yet.
+ */
 export function getStore(): PlaceGraphStore {
   if (!globalForStore.__placegraphStore) {
     globalForStore.__placegraphStore = new PlaceGraphStore();
     globalForStore.__placegraphStore.load();
-    void globalForStore.__placegraphStore.hydrateRemote();
   }
   return globalForStore.__placegraphStore;
+}
+
+/**
+ * Store with remote (Supabase) state merged in. Every API route should use
+ * this before reading, so cold/warm serverless instances see projects and
+ * analyses created by other instances.
+ */
+export async function getReadyStore(): Promise<PlaceGraphStore> {
+  const store = getStore();
+  await store.hydrateRemote();
+  return store;
 }

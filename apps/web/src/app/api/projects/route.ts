@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStore } from '@placegraph/db';
+import { getReadyStore } from '@placegraph/db';
 import { generateId, nowIso } from '@placegraph/core';
 import type { Project } from '@placegraph/types';
 import { getWorkspaceId } from '@/lib/workspace';
@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const store = getStore();
+  const store = await getReadyStore();
   const workspaceId = await getWorkspaceId();
-  return NextResponse.json({ projects: store.listProjects(workspaceId) });
+  return NextResponse.json({ projects: await store.listProjects(workspaceId) });
 }
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const now = nowIso();
     const workspaceId = await getWorkspaceId();
     const id = generateId('proj');
-    const store = getStore();
+    const store = await getReadyStore();
     let floorPlanUrl = body.floorPlanUrl as string | undefined;
     if (floorPlanUrl?.startsWith('data:')) {
       floorPlanUrl = store.saveFloorPlan(id, floorPlanUrl);
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       createdAt: now,
       updatedAt: now
     };
-    store.saveProject(project);
+    await store.saveProject(project);
     return NextResponse.json(project, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
