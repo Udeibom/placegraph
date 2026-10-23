@@ -148,18 +148,30 @@ export default function ConceptPage() {
   const floorPlanDataUrl = project.floorPlanUrl?.startsWith('data:') ? project.floorPlanUrl : null;
 
   if (!strategy) return (
-    <div>
-      <PipelineNav projectId={id} current="concept" />
-      <p style={{ color: 'var(--muted)' }}>
-        Select a strategy first.{' '}
-        <Link href={`/projects/${id}/strategies`} style={{ color: 'var(--accent)' }}>Go to strategies →</Link>
-      </p>
-    </div>
+    <main>
+      <PipelineNav projectId={id} current="concept" analysisStatus={analysis?.status ?? project.status} />
+      <div style={{
+        maxWidth: '34rem', marginTop: '1rem', padding: '1.75rem',
+        border: '1.5px solid var(--line-2)', borderRadius: 'var(--radius-md)',
+        background: 'var(--surface-raised)',
+      }}>
+        <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.5rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.5rem' }}>
+          Choose a commercial direction first
+        </h1>
+        <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', lineHeight: 1.65, marginBottom: '1.25rem' }}>
+          Experience requirements, architectural decisions and the spatial concept are all derived from a
+          selected strategy. Pick one of the three directions to continue.
+        </p>
+        <Link href={`/projects/${id}/strategies`} className="pg-btn">
+          Go to strategies →
+        </Link>
+      </div>
+    </main>
   );
 
   return (
     <main>
-      <PipelineNav projectId={id} current="concept" analysisStatus={project.status} />
+      <PipelineNav projectId={id} current="concept" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.25rem' }}>
         Experience + architecture

@@ -10,11 +10,6 @@ export interface StoreShape {
 
 const emptyStore = (): StoreShape => ({ projects: {}, analyses: {} });
 
-// How stale a non-forced remote hydration may be (ms)
-const HYDRATE_TTL = 5000;
-// Cooldown between forced (miss-triggered) hydrations (ms)
-const FORCED_HYDRATE_COOLDOWN = 500;
-
 function rootDir(): string {
   return (
     process.env.PLACEGRAPH_DATA_DIR ||
@@ -45,7 +40,6 @@ export class PlaceGraphStore {
   private data: StoreShape = emptyStore();
   private loaded = false;
   private hydrating: Promise<void> | null = null;
-  private lastHydrateAttempt = 0;
 
   load() {
     if (this.loaded) return;
@@ -68,16 +62,14 @@ export class PlaceGraphStore {
 
   /**
    * Merge remote (Supabase) state into this instance's memory.
-   * Awaited by every route via getReadyStore(), and re-triggered on
-   * cache misses so a warm serverless instance never serves stale-only data.
+   * Supabase is the source of truth in serverless deployments, so remote
+   * always wins over this instance's cached copy. Hydration runs on every
+   * request (deduped while in flight) because a stale local copy previously
+   * made pages show outdated pipeline state after a write on another instance.
    */
-  hydrateRemote(opts: { force?: boolean } = {}): Promise<void> {
+  hydrateRemote(_opts: { force?: boolean } = {}): Promise<void> {
     if (!hasSupabase()) return Promise.resolve();
     if (this.hydrating) return this.hydrating;
-    const age = Date.now() - this.lastHydrateAttempt;
-    const cooldown = opts.force ? FORCED_HYDRATE_COOLDOWN : HYDRATE_TTL;
-    if (this.lastHydrateAttempt && age < cooldown) return Promise.resolve();
-    this.lastHydrateAttempt = Date.now();
     this.hydrating = this.doHydrate().finally(() => {
       this.hydrating = null;
     });
@@ -89,8 +81,8 @@ export class PlaceGraphStore {
     try {
       const remote = await loadRemoteStore();
       if (!remote) return;
-      this.data.projects = { ...remote.projects, ...this.data.projects };
-      this.data.analyses = { ...remote.analyses, ...this.data.analyses };
+      this.data.projects = { ...this.data.projects, ...remote.projects };
+      this.data.analyses = { ...this.data.analyses, ...remote.analyses };
       for (const key of remote.deletedIds ?? []) {
         const sep = key.indexOf(':');
         if (sep < 0) continue;

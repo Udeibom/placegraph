@@ -218,7 +218,7 @@ export default function StrategiesPage() {
 
   return (
     <main>
-      <PipelineNav projectId={id} current="strategy" analysisStatus={project.status} />
+      <PipelineNav projectId={id} current="strategy" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
         Strategic directions

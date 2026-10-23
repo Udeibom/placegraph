@@ -192,7 +192,7 @@ function ExplainInner() {
 
   return (
     <main>
-      <PipelineNav projectId={id} current="architecture" analysisStatus={bundle?.project.status} />
+      <PipelineNav projectId={id} current="architecture" analysisStatus={bundle?.analysis?.status ?? bundle?.project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
         {decisionId ? 'Why is this here?' : 'Reasoning chain'}

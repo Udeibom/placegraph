@@ -30,6 +30,7 @@ export interface LLMResponse {
 
 export class LLMProvider {
   private config: LLMConfig;
+  private resolvedModel: string | null = null;
 
   constructor(config: LLMConfig) {
     this.config = config;
@@ -39,49 +40,75 @@ export class LLMProvider {
     return Boolean(this.config.apiKey);
   }
 
+  private modelCandidates(): string[] {
+    return Array.from(
+      new Set(
+        [
+          this.resolvedModel,
+          this.config.model,
+          'openai/gpt-oss-120b',
+          'openai/gpt-oss-20b',
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant'
+        ].filter((m): m is string => Boolean(m))
+      )
+    );
+  }
+
   async complete(messages: LLMMessage[], opts?: { temperature?: number; maxTokens?: number; json?: boolean }): Promise<LLMResponse> {
     if (!this.config.apiKey) {
       return { content: '', model: this.config.model };
     }
 
     try {
-      const body: Record<string, unknown> = {
-        model: this.config.model,
-        messages,
-        temperature: opts?.temperature ?? 0.4,
-        max_tokens: opts?.maxTokens ?? 6000
-      };
-      if (opts?.json !== false) {
-        body.response_format = { type: 'json_object' };
+      for (const model of this.modelCandidates()) {
+        const body: Record<string, unknown> = {
+          model,
+          messages,
+          temperature: opts?.temperature ?? 0.4,
+          max_tokens: opts?.maxTokens ?? 6000
+        };
+        if (opts?.json !== false) {
+          body.response_format = { type: 'json_object' };
+        }
+
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          console.warn(`Groq API error (${model}):`, res.status, text);
+          const retryable =
+            res.status === 404 ||
+            text.includes('model_not_found') ||
+            text.includes('does not exist') ||
+            text.includes('do not have access');
+          if (retryable) continue;
+          return { content: '', model };
+        }
+
+        const data = await res.json();
+        const resolved = data.model || model;
+        this.resolvedModel = resolved;
+        return {
+          content: data.choices?.[0]?.message?.content || '',
+          model: resolved,
+          usage: data.usage
+            ? {
+                promptTokens: data.usage.prompt_tokens,
+                completionTokens: data.usage.completion_tokens
+              }
+            : undefined
+        };
       }
-
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        console.warn('Groq API error:', res.status, text);
-        return { content: '', model: this.config.model };
-      }
-
-      const data = await res.json();
-      return {
-        content: data.choices?.[0]?.message?.content || '',
-        model: data.model || this.config.model,
-        usage: data.usage
-          ? {
-              promptTokens: data.usage.prompt_tokens,
-              completionTokens: data.usage.completion_tokens
-            }
-          : undefined
-      };
-      } catch (err) {
+      return { content: '', model: this.config.model };
+    } catch (err) {
       console.warn('LLM provider error:', err);
       return { content: '', model: this.config.model };
     }
@@ -129,7 +156,7 @@ export class LLMProvider {
 export function createLLMProvider(): LLMProvider {
   return new LLMProvider({
     provider: 'groq',
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
     apiKey: process.env.GROQ_API_KEY || ''
   });
 }

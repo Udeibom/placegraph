@@ -248,7 +248,7 @@ export default function AnalysisPage() {
 
   return (
     <main>
-      <PipelineNav projectId={id} current="culture" analysisStatus={project.status} />
+      <PipelineNav projectId={id} current="culture" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
         Cultural opportunity analysis

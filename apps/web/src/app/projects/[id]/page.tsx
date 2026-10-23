@@ -45,7 +45,7 @@ export default function ProjectPage() {
 
   return (
     <main>
-      <PipelineNav projectId={id} current="place" analysisStatus={project.status} />
+      <PipelineNav projectId={id} current="place" analysisStatus={analysis?.status ?? project.status} />
 
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>

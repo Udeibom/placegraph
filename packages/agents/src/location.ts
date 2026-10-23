@@ -1,11 +1,84 @@
 import type { LocationContext, PlacePoi, Project } from '@placegraph/types';
 
+// Nominatim's usage policy requires an identifying User-Agent with contact details.
+// The previous UA had none, so requests were silently rejected and every location
+// looked unmatched (which pushed the whole analysis onto generic fallback copy).
+const USER_AGENT = 'PlaceGraph/1.0 (+https://placegraph.vercel.app; contact@placegraph.app)';
+
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.osm.ch/api/interpreter'
+];
+
+interface GeoResult {
+  lat: number;
+  lng: number;
+  displayName?: string;
+  city?: string;
+}
+
 function locationQuery(project: Project): string {
   return (
     project.location.address ||
     [project.location.neighborhood, project.location.city].filter(Boolean).join(', ') ||
     project.name
   );
+}
+
+function locationCandidates(project: Project): string[] {
+  const raw = [
+    locationQuery(project),
+    [project.location.neighborhood, project.location.city].filter(Boolean).join(', '),
+    project.location.city
+  ];
+  return Array.from(new Set(raw.filter((q): q is string => Boolean(q)).map((q) => q.trim())));
+}
+
+async function geocodeNominatim(query: string): Promise<GeoResult | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) return null;
+    const results = (await res.json()) as any[];
+    const hit = results?.[0];
+    if (!hit) return null;
+    const address = hit.address ?? {};
+    return {
+      lat: parseFloat(hit.lat),
+      lng: parseFloat(hit.lon),
+      displayName: hit.display_name,
+      city: address.city || address.town || address.village || address.state_district
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function geocodePhoton(query: string): Promise<GeoResult | null> {
+  try {
+    const url = `https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    const feature = data.features?.[0];
+    const coords = feature?.geometry?.coordinates;
+    if (!coords) return null;
+    const props = feature.properties ?? {};
+    return {
+      lat: coords[1],
+      lng: coords[0],
+      displayName: [props.name, props.state, props.country].filter(Boolean).join(', '),
+      city: props.city || props.name
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function gatherLocationContext(project: Project): Promise<LocationContext> {
@@ -16,27 +89,20 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
   let displayName: string | undefined;
   let city = project.location.city;
 
-  try {
-    const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
-    const geoRes = await fetch(geoUrl, {
-      headers: { 'User-Agent': 'PlaceGraph/1.0 (cultural-architecture agent)' },
-      signal: AbortSignal.timeout(8000)
-    });
-    if (geoRes.ok) {
-      const results = (await geoRes.json()) as any[];
-      if (results?.[0]) {
-        lat = parseFloat(results[0].lat);
-        lng = parseFloat(results[0].lon);
-        displayName = results[0].display_name;
-        city = city || results[0].address?.city || results[0].display_name?.split(',')[0];
-      } else {
-        notes.push('Geocoding returned no match; geographic evidence is incomplete.');
-      }
-    } else {
-      notes.push('Geocoding service was unavailable.');
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    let resolved: GeoResult | null = null;
+    for (const candidate of locationCandidates(project)) {
+      resolved = (await geocodeNominatim(candidate)) || (await geocodePhoton(candidate));
+      if (resolved) break;
     }
-  } catch {
-    notes.push('Geocoding request failed; continuing without coordinates.');
+    if (resolved) {
+      lat = resolved.lat;
+      lng = resolved.lng;
+      displayName = resolved.displayName;
+      city = city || resolved.city;
+    } else {
+      notes.push('Geocoding returned no match; geographic evidence is incomplete.');
+    }
   }
 
   let pois: PlacePoi[] = [];
@@ -82,14 +148,27 @@ async function nearbyPois(lat: number, lng: number, projectType: string): Promis
     out center 50;
   `;
 
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: `data=${encodeURIComponent(query)}`,
-    signal: AbortSignal.timeout(18000)
-  });
-  if (!res.ok) return [];
-  const data = await res.json();
+  let data: any = null;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'User-Agent': USER_AGENT,
+          Accept: 'application/json'
+        },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: AbortSignal.timeout(18000)
+      });
+      if (!res.ok) continue;
+      data = await res.json();
+      break;
+    } catch {
+      // try the next mirror
+    }
+  }
+  if (!data) return [];
   const elements = Array.isArray(data.elements) ? data.elements : [];
   const pois: PlacePoi[] = [];
   for (const el of elements) {

@@ -88,7 +88,7 @@ export default function ReviewPage() {
 
   return (
     <main>
-      <PipelineNav projectId={id} current="review" analysisStatus={project.status} />
+      <PipelineNav projectId={id} current="review" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
         Professional review

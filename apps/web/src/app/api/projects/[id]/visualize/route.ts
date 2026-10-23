@@ -21,7 +21,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       emit({ type: 'progress', stage, message })
     );
     await store.saveAnalysis(visualized);
-    const saved = await store.saveProject({ ...project, status: 'review', updatedAt: nowIso() });
+    const saved = await store.saveProject({ ...project, status: 'complete', updatedAt: nowIso() });
     emit({ type: 'result', bundle: { project: saved, analysis: visualized } });
   });
 }
