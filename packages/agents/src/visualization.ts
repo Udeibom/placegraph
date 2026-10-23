@@ -1,7 +1,6 @@
 import type { Project } from '@placegraph/types';
 import { ProvenanceBuilder, parseJsonFromLlm, replaceVars } from '@placegraph/core';
 import { VISUALIZATION_PROMPT } from './prompts/visualization';
-import { createHFImageProvider } from './providers/images/hf';
 import { renderConceptSvg } from './providers/images/concept-svg';
 import { LLMProvider, createLLMProvider } from './providers/llm';
 
