@@ -119,7 +119,11 @@ export class QlooClient {
         'filter.location.query': opts.locationQuery,
         take: opts.take || 15
       });
-      return data.results || data.entities || [];
+      if (Array.isArray(data?.results)) return data.results;
+      if (Array.isArray(data?.results?.entities)) return data.results.entities;
+      if (Array.isArray(data?.entities)) return data.entities;
+      if (Array.isArray(data?.data)) return data.data;
+      return [];
     } catch (err) {
       console.warn('Qloo getInsights failed:', err);
       return [];
@@ -154,7 +158,8 @@ export class QlooClient {
 
       const affinities: QlooAffinity[] = [];
       for (let i = 0; i < batches.length; i++) {
-        for (const row of batches[i]) {
+        const batch = Array.isArray(batches[i]) ? batches[i] : [];
+        for (const row of batch) {
           affinities.push({
             target: entityName(row),
             targetId: entityIdFromRow(row),

@@ -7,6 +7,8 @@ const USER_AGENT = 'PlaceGraph/1.0 (+https://placegraph.vercel.app; contact@plac
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.ru/api/interpreter',
   'https://overpass.osm.ch/api/interpreter'
 ];
 
@@ -109,9 +111,16 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
   if (typeof lat === 'number' && typeof lng === 'number') {
     try {
       pois = await nearbyPois(lat, lng, project.projectType);
-      if (!pois.length) notes.push('Nearby commercial POIs could not be retrieved at this resolution.');
     } catch {
       notes.push('OpenStreetMap Overpass lookup failed.');
+    }
+    if (!pois.length) {
+      pois = await nominatimPois(lat, lng, project.projectType);
+      if (pois.length) {
+        notes.push('POI evidence came from Nominatim because Overpass mirrors were unavailable.');
+      } else {
+        notes.push('Nearby commercial POIs could not be retrieved at this resolution.');
+      }
     }
   }
 
@@ -148,27 +157,32 @@ async function nearbyPois(lat: number, lng: number, projectType: string): Promis
     out center 50;
   `;
 
-  let data: any = null;
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          'User-Agent': USER_AGENT,
-          Accept: 'application/json'
-        },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(18000)
-      });
-      if (!res.ok) continue;
-      data = await res.json();
-      break;
-    } catch {
-      // try the next mirror
+  const attempts = OVERPASS_ENDPOINTS.map(async (endpoint) => {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'User-Agent': USER_AGENT,
+        Accept: 'application/json'
+      },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!res.ok) throw new Error(`${endpoint} returned ${res.status}`);
+    const data = await res.json();
+    if (!Array.isArray(data?.elements) || data.elements.length === 0) {
+      throw new Error(`${endpoint} returned no elements`);
     }
+    return data;
+  });
+
+  let data: any = null;
+  try {
+    data = await Promise.any(attempts);
+  } catch {
+    return [];
   }
-  if (!data) return [];
+
   const elements = Array.isArray(data.elements) ? data.elements : [];
   const pois: PlacePoi[] = [];
   for (const el of elements) {
@@ -187,6 +201,54 @@ async function nearbyPois(lat: number, lng: number, projectType: string): Promis
           : undefined
     });
   }
+  return dedupePois(pois);
+}
+
+async function nominatimPois(lat: number, lng: number, projectType: string): Promise<PlacePoi[]> {
+  const categories =
+    projectType === 'hotel'
+      ? ['cafe', 'restaurant', 'bar']
+      : projectType === 'retail'
+        ? ['cafe', 'restaurant', 'shop']
+        : ['cafe', 'restaurant'];
+
+  const delta = 0.009;
+  const viewbox = `${lng - delta},${lat + delta},${lng + delta},${lat - delta}`;
+  const pois: PlacePoi[] = [];
+
+  for (let i = 0; i < categories.length; i++) {
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1100));
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=20&bounded=1&viewbox=${encodeURIComponent(viewbox)}&q=${encodeURIComponent(categories[i])}`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+        signal: AbortSignal.timeout(9000)
+      });
+      if (!res.ok) continue;
+      const hits = (await res.json()) as any[];
+      for (const hit of hits) {
+        const plat = parseFloat(hit.lat);
+        const plng = parseFloat(hit.lon);
+        if (!Number.isFinite(plat) || !Number.isFinite(plng)) continue;
+        const name = hit.name || String(hit.display_name || '').split(',')[0];
+        if (!name) continue;
+        pois.push({
+          name,
+          category: hit.type || categories[i],
+          lat: plat,
+          lng: plng,
+          distanceM: haversineM(lat, lng, plat, plng)
+        });
+      }
+    } catch {
+      // try the next category
+    }
+  }
+
+  return dedupePois(pois);
+}
+
+function dedupePois(pois: PlacePoi[]): PlacePoi[] {
   const unique = new Map<string, PlacePoi>();
   for (const p of pois) if (!unique.has(p.name)) unique.set(p.name, p);
   return Array.from(unique.values())

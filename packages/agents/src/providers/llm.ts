@@ -60,13 +60,28 @@ export class LLMProvider {
       return { content: '', model: this.config.model };
     }
 
+    const maxTokens = Math.min(opts?.maxTokens ?? 6000, 4000);
+    const candidates = Array.from(
+      new Set(
+        [
+          this.resolvedModel,
+          this.config.model,
+          'openai/gpt-oss-20b',
+          'qwen/qwen3.8-27b',
+          'openai/gpt-oss-120b',
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant'
+        ].filter((m): m is string => Boolean(m))
+      )
+    );
+
     try {
-      for (const model of this.modelCandidates()) {
+      for (const model of candidates) {
         const body: Record<string, unknown> = {
           model,
           messages,
           temperature: opts?.temperature ?? 0.4,
-          max_tokens: opts?.maxTokens ?? 6000
+          max_tokens: maxTokens
         };
         if (opts?.json !== false) {
           body.response_format = { type: 'json_object' };
@@ -83,12 +98,15 @@ export class LLMProvider {
 
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          console.warn(`Groq API error (${model}):`, res.status, text);
+          console.warn(`Groq API error (${model}):`, res.status, text.slice(0, 200));
           const retryable =
             res.status === 404 ||
+            res.status === 429 ||
             text.includes('model_not_found') ||
             text.includes('does not exist') ||
-            text.includes('do not have access');
+            text.includes('do not have access') ||
+            text.includes('rate limit') ||
+            text.includes('reduce the length');
           if (retryable) continue;
           return { content: '', model };
         }

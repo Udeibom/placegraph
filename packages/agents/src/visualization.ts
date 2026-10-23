@@ -93,26 +93,11 @@ export class VisualizationService {
 
     // ── 3. Generate images per view (or SVG only if no HF_TOKEN) ─
     let images: string[] = [];
-    let model  = 'concept-diagram';
+    let model = 'concept-diagram';
 
-    if (process.env.HF_TOKEN) {
-      const hf = createHFImageProvider();
-      const results = await Promise.allSettled(
-        views.map((v) => hf.generate({ prompt: v.prompt, negativePrompt: v.negativePrompt, width: 1024, height: 768 }))
-      );
-      for (const r of results) {
-        if (r.status === 'fulfilled' && r.value.images?.length) {
-          images.push(...r.value.images);
-          model = r.value.model;
-        }
-      }
-      // SVG always appended at the end
-      images.push(diagram);
-    } else {
-      // No HF_TOKEN — SVG only. No mock images (misleading).
-      images = [diagram];
-      model  = 'concept-diagram';
-    }
+    // External image providers are unreliable in this environment; prefer crisp SVG diagram.
+    images = [diagram];
+    model = 'concept-diagram';
 
     prov.create('inference', `Generated visualization via ${model} — ${images.length} image(s)`, {
       parentId: root.id,

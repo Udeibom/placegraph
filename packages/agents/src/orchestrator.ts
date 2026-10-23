@@ -49,6 +49,67 @@ function reviewClip(analysis: AnalysisSnapshot) {
   };
 }
 
+function compactLocation(location: any) {
+  if (!location) return location;
+  return {
+    query: location.query,
+    displayName: location.displayName,
+    city: location.city,
+    evidenceQuality: location.evidenceQuality,
+    pois: (location.pois || []).slice(0, 10).map((p: any) => ({
+      name: p.name,
+      category: p.category,
+      distanceM: p.distanceM
+    })),
+    notes: (location.notes || []).slice(0, 3)
+  };
+}
+
+function compactAffinities(list: any[], limit = 8) {
+  return (Array.isArray(list) ? list : []).slice(0, limit).map((a: any) => ({
+    target: a.target || a.name,
+    strength: a.strength,
+    domain: a.domain
+  }));
+}
+
+function compactQloo(qloo: any) {
+  if (!qloo) return qloo;
+  const cross = qloo.crossDomain?.results;
+  return {
+    source: qloo.source,
+    insufficient: qloo.insufficient,
+    affinities: compactAffinities(qloo.affinities, 10),
+    audienceAffinities: Object.fromEntries(
+      Object.entries(qloo.audienceAffinities || {}).map(([k, v]) => [k, compactAffinities(v as any[], 5)])
+    ),
+    entities: (qloo.entities || []).slice(0, 8).map((e: any) => ({
+      name: e.name,
+      domain: e.domain,
+      type: e.type
+    })),
+    crossDomain: cross
+      ? {
+          places: compactAffinities(cross.places, 5),
+          brands: compactAffinities(cross.brands, 5),
+          artists: compactAffinities(cross.artists, 5)
+        }
+      : undefined,
+    notes: (qloo.notes || []).slice(0, 3)
+  };
+}
+
+function compactFloorPlan(floorPlan: any) {
+  if (!floorPlan) return floorPlan;
+  return {
+    source: floorPlan.source,
+    summary: floorPlan.summary,
+    rooms: (floorPlan.rooms || []).slice(0, 8),
+    constraints: (floorPlan.constraints || []).slice(0, 4),
+    usable: floorPlan.usable
+  };
+}
+
 function normalizeOpportunity(raw: any, runId: string): Opportunity {
   return {
     id: raw.id || generateId('opp'),
@@ -101,12 +162,14 @@ export class AgentOrchestrator {
   private async json<T>(prompt: string, fallback: T, system?: string): Promise<T> {
     if (!this.llm.available) return fallback;
     const extra = system || 'You are PlaceGraph. Return only valid JSON. Distinguish Qloo evidence, local evidence, inference, and uncertainty.';
+    const trimmed = prompt.length > 120000 ? prompt.slice(0, 120000) + '\n\n[TRIMMED]' : prompt;
+    console.info(`[llm] promptChars=${trimmed.length}`);
     const resp = await this.llm.complete(
       [
         { role: 'system', content: extra },
-        { role: 'user', content: prompt }
+        { role: 'user', content: trimmed }
       ],
-      { json: true, maxTokens: 7000 }
+      { json: true, maxTokens: 3000 }
     );
     return parseJsonFromLlm(resp.content, fallback);
   }
@@ -131,6 +194,10 @@ export class AgentOrchestrator {
       location: locationContext,
       qloo: qlooContext
     });
+
+    // Keep prompts within the Groq free-tier token budget (8k TPM per model).
+    const promptLocation = compactLocation(locationContext);
+    const promptQloo = compactQloo(qlooContext);
 
     prov.create('external', `Location evidence: ${locationContext.evidenceQuality}. ${locationContext.notes.join(' ')}`, {
       parentId: root.id,
@@ -168,9 +235,9 @@ export class AgentOrchestrator {
     const landscapeFallback = fallbackLandscapes(input.project, snapshot);
     const landscapePrompt = replaceVars(LANDSCAPE_PROMPT, {
       project: input.project,
-      locationContext,
-      qlooContext,
-      audienceAffinities: JSON.stringify(qlooContext.audienceAffinities ?? {})
+      locationContext: promptLocation,
+      qlooContext: promptQloo,
+      audienceAffinities: JSON.stringify(promptQloo.audienceAffinities ?? {})
     });
     const landscapeJson = await this.json<any>(landscapePrompt, { landscapes: landscapeFallback, audienceAnalysis: {
       shared: input.project.audiences.map((a) => a.name),
@@ -193,8 +260,8 @@ export class AgentOrchestrator {
       project: input.project,
       landscapes: snapshot.landscapes,
       audienceAnalysis: snapshot.audienceAnalysis,
-      locationContext,
-      qlooContext
+      locationContext: promptLocation,
+      qlooContext: promptQloo
     }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
     const oppJson = await this.json<any>(oppPrompt, { opportunities: oppFallback });
     const opportunities = (oppJson.opportunities || oppFallback).map((o: any) => normalizeOpportunity(o, runId));
@@ -207,7 +274,7 @@ export class AgentOrchestrator {
       opportunities: snapshot.opportunities,
       landscapes: snapshot.landscapes,
       audienceAnalysis: snapshot.audienceAnalysis,
-      qlooContext
+      qlooContext: promptQloo
     }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
     const stratJson = await this.json<any>(stratPrompt, { strategies: stratFallback });
     const strategies = (stratJson.strategies || stratFallback).map((s: any) => normalizeStrategy(s, runId));
@@ -252,8 +319,8 @@ export class AgentOrchestrator {
         project,
         strategy,
         audienceAnalysis: analysis.audienceAnalysis,
-        floorPlan: analysis.floorPlan,
-        qlooContext: analysis.qlooContext,
+        floorPlan: compactFloorPlan(analysis.floorPlan),
+        qlooContext: compactQloo(analysis.qlooContext),
         evidenceGate: analysis.evidenceGate
       }) + (guidance ? `\nGuidance:\n${guidance}` : '');
     const reqJson = await this.json<any>(reqPrompt, { requirements: reqFallback });
@@ -275,8 +342,8 @@ export class AgentOrchestrator {
         project,
         strategy,
         requirements: next.requirements,
-        floorPlan: analysis.floorPlan,
-        qlooContext: analysis.qlooContext,
+        floorPlan: compactFloorPlan(analysis.floorPlan),
+        qlooContext: compactQloo(analysis.qlooContext),
         evidenceGate: analysis.evidenceGate
       }) + (guidance ? `\nGuidance:\n${guidance}` : '');
     const archJson = await this.json<any>(archPrompt, archFallback);
@@ -363,7 +430,7 @@ export class AgentOrchestrator {
         requirements: analysis.requirements,
         decisions: analysis.decisions,
         concept: analysis.concept,
-        qlooContext: analysis.qlooContext,
+        qlooContext: compactQloo(analysis.qlooContext),
         feedback
       }),
       {
