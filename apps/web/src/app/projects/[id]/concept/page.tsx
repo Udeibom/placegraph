@@ -334,8 +334,7 @@ export default function ConceptPage() {
         ) : (
           <div>
             <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-              Generate concept visualizations from the architectural reasoning chain.
-              {' '}When <code>HF_TOKEN</code> is set, rendered images are generated. Otherwise the SVG concept diagram is included.
+              Generate a spatial concept diagram from the architectural reasoning chain.
             </p>
             <button
               type="button"

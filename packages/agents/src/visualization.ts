@@ -90,17 +90,13 @@ export class VisualizationService {
       concept:     input.concept
     });
 
-    // ── 3. Generate images per view (or SVG only if no HF_TOKEN) ─
-    let images: string[] = [];
-    let model = 'concept-diagram';
-
-    // External image providers are unreliable in this environment; prefer crisp SVG diagram.
-    images = [diagram];
-    model = 'concept-diagram';
+    // ── 3. Spatial concept diagram ────────────────────────────
+    const images: string[] = [diagram];
+    const model = 'concept-diagram';
 
     prov.create('inference', `Generated visualization via ${model} — ${images.length} image(s)`, {
       parentId: root.id,
-      metadata: { count: images.length, model, hfEnabled: !!process.env.HF_TOKEN }
+      metadata: { count: images.length, model }
     });
 
     return { prov, prompt: firstPrompt, images, model, views };
