@@ -6,9 +6,7 @@ function entityId(raw) {
 }
 function affinityScore(raw) {
     const q = raw?.query?.affinity ?? raw?.affinity ?? raw?.score;
-    if (typeof q === 'number')
-        return q;
-    return 0.5;
+    return typeof q === 'number' && Number.isFinite(q) ? q : undefined;
 }
 function domainFromType(type) {
     if (!type)
@@ -72,7 +70,10 @@ export class QlooClient {
                 id: entityId(r),
                 name: entityName(r),
                 type: r.subtype || r.type,
-                domain: domainFromType(r.subtype || r.type)
+                domain: domainFromType(r.subtype || r.type),
+                city: r?.properties?.geocode?.city,
+                country: r?.properties?.geocode?.country,
+                popularity: typeof r?.popularity === 'number' ? r.popularity : undefined
             }));
         }
         catch (err) {
@@ -88,7 +89,15 @@ export class QlooClient {
                 'filter.location.query': opts.locationQuery,
                 take: opts.take || 15
             });
-            return data.results || data.entities || [];
+            if (Array.isArray(data?.results))
+                return data.results;
+            if (Array.isArray(data?.results?.entities))
+                return data.results.entities;
+            if (Array.isArray(data?.entities))
+                return data.entities;
+            if (Array.isArray(data?.data))
+                return data.data;
+            return [];
         }
         catch (err) {
             console.warn('Qloo getInsights failed:', err);
@@ -117,11 +126,15 @@ export class QlooClient {
             })));
             const affinities = [];
             for (let i = 0; i < batches.length; i++) {
-                for (const row of batches[i]) {
+                const batch = Array.isArray(batches[i]) ? batches[i] : [];
+                for (const row of batch) {
+                    const strength = affinityScore(row);
+                    if (strength === undefined)
+                        continue;
                     affinities.push({
                         target: entityName(row),
                         targetId: entityIdFromRow(row),
-                        strength: affinityScore(row),
+                        strength,
                         domain: domainFromType(types[i]),
                         relation: 'affinity'
                     });
@@ -159,7 +172,11 @@ export class QlooClient {
                 })
             ]);
             return {
-                results: { places, brands, artists },
+                results: {
+                    places: scoredRows(places, 'place'),
+                    brands: scoredRows(brands, 'brand'),
+                    artists: scoredRows(artists, 'music')
+                },
                 entityIds: ids,
                 source: 'live'
             };
@@ -181,4 +198,18 @@ export function createQlooClient() {
 }
 export function hasQlooKey() {
     return Boolean(process.env.QLOO_API_KEY);
+}
+function scoredRows(rows, domain) {
+    return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+        const strength = affinityScore(row);
+        if (strength === undefined)
+            return [];
+        return [{
+                target: entityName(row),
+                targetId: entityIdFromRow(row),
+                strength,
+                domain,
+                relation: 'affinity'
+            }];
+    });
 }

@@ -32,8 +32,9 @@ For each opportunity provide:
 - inferred: what you inferred (not observed, not in Qloo)
 
 Rules:
+- Qloo entity search matches are NOT affinity evidence. Do not put a search-only match in qlooEstablished.
 - If Qloo evidence does not strongly support an opportunity type, reduce confidence and say so in uncertainties.
-- The qlooEstablished field must name specific entities or affinity relationships. Never write vague phrases like "Qloo data shows cultural interest".
+- The qlooEstablished field must name specific scored affinity entities or affinity relationships. Never write vague phrases like "Qloo data shows cultural interest".
 - Be conservative about certainty. Cultural affinity is not demand.
 - Uncertainty must be honest — list the key unverified assumptions.
 

@@ -8,6 +8,9 @@ export interface QlooEntity {
     type?: string;
     domain?: string;
     subtype?: string;
+    city?: string;
+    country?: string;
+    popularity?: number;
 }
 export interface QlooAffinity {
     target: string;

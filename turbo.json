@@ -14,7 +14,13 @@
     "SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "PLACEGRAPH_DATA_DIR",
-    "VERCEL"
+    "VERCEL",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_R2_ACCESS_KEY_ID",
+    "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+    "CLOUDFLARE_R2_ENDPOINT",
+    "POLLINATIONS_API_KEY"
   ],
   "tasks": {
     "build": {
@@ -34,5 +40,8 @@
     "clean": {
       "cache": false
     }
+  },
+  "remoteCache": {
+    "enabled": false
   }
 }

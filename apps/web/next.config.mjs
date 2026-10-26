@@ -1,5 +1,10 @@
-const path = require('path');
-const { loadEnvConfig } = require('@next/env');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import nextEnv from '@next/env';
+
+const { loadEnvConfig } = nextEnv;
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 loadEnvConfig(path.join(__dirname, '../..'));
 loadEnvConfig(__dirname);
@@ -31,4 +36,4 @@ const nextConfig = {
   }
 };
 
-module.exports = nextConfig;
+export default nextConfig;

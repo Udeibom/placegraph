@@ -1,5 +1,5 @@
 import { z } from 'zod';
-export declare const ProjectTypeSchema: z.ZodEnum<["restaurant", "hotel", "retail", "hospitality", "other"]>;
+export declare const ProjectTypeSchema: z.ZodEnum<["restaurant", "hotel", "retail", "bar", "cafe", "office", "mixed", "hospitality", "other"]>;
 export type ProjectType = z.infer<typeof ProjectTypeSchema>;
 export declare const AudienceSchema: z.ZodObject<{
     name: z.ZodString;
@@ -49,7 +49,7 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     }>;
-    projectType: z.ZodEnum<["restaurant", "hotel", "retail", "hospitality", "other"]>;
+    projectType: z.ZodEnum<["restaurant", "hotel", "retail", "bar", "cafe", "office", "mixed", "hospitality", "other"]>;
     objective: z.ZodString;
     budgetRange: z.ZodOptional<z.ZodString>;
     floorArea: z.ZodOptional<z.ZodString>;
@@ -95,7 +95,7 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     };
-    projectType: "restaurant" | "hotel" | "retail" | "hospitality" | "other";
+    projectType: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other";
     objective: string;
     audiences: {
         name: string;
@@ -123,7 +123,7 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     };
-    projectType: "restaurant" | "hotel" | "retail" | "hospitality" | "other";
+    projectType: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other";
     objective: string;
     status?: "draft" | "analyzing" | "strategizing" | "designing" | "review" | "complete" | undefined;
     budgetRange?: string | undefined;

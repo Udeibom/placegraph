@@ -9,6 +9,9 @@ export interface QlooEntity {
   type?: string;
   domain?: string;
   subtype?: string;
+  city?: string;
+  country?: string;
+  popularity?: number;
 }
 
 export interface QlooAffinity {
@@ -34,10 +37,9 @@ function entityId(raw: any): string | undefined {
   return raw?.entity_id || raw?.id || raw?.uuid;
 }
 
-function affinityScore(raw: any): number {
+function affinityScore(raw: any): number | undefined {
   const q = raw?.query?.affinity ?? raw?.affinity ?? raw?.score;
-  if (typeof q === 'number') return q;
-  return 0.5;
+  return typeof q === 'number' && Number.isFinite(q) ? q : undefined;
 }
 
 function domainFromType(type?: string): string {
@@ -98,7 +100,10 @@ export class QlooClient {
         id: entityId(r),
         name: entityName(r),
         type: r.subtype || r.type,
-        domain: domainFromType(r.subtype || r.type)
+        domain: domainFromType(r.subtype || r.type),
+        city: r?.properties?.geocode?.city,
+        country: r?.properties?.geocode?.country,
+        popularity: typeof r?.popularity === 'number' ? r.popularity : undefined
       }));
     } catch (err) {
       console.warn('Qloo searchEntities failed:', err);
@@ -160,10 +165,12 @@ export class QlooClient {
       for (let i = 0; i < batches.length; i++) {
         const batch = Array.isArray(batches[i]) ? batches[i] : [];
         for (const row of batch) {
+          const strength = affinityScore(row);
+          if (strength === undefined) continue;
           affinities.push({
             target: entityName(row),
             targetId: entityIdFromRow(row),
-            strength: affinityScore(row),
+            strength,
             domain: domainFromType(types[i]),
             relation: 'affinity'
           });
@@ -207,7 +214,11 @@ export class QlooClient {
       ]);
 
       return {
-        results: { places, brands, artists },
+        results: {
+          places: scoredRows(places, 'place'),
+          brands: scoredRows(brands, 'brand'),
+          artists: scoredRows(artists, 'music')
+        },
         entityIds: ids,
         source: 'live'
       };
@@ -231,4 +242,19 @@ export function createQlooClient(): QlooClient {
 
 export function hasQlooKey(): boolean {
   return Boolean(process.env.QLOO_API_KEY);
+}
+
+
+function scoredRows(rows: any[], domain: string): QlooAffinity[] {
+  return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+    const strength = affinityScore(row);
+    if (strength === undefined) return [];
+    return [{
+      target: entityName(row),
+      targetId: entityIdFromRow(row),
+      strength,
+      domain,
+      relation: 'affinity'
+    }];
+  });
 }

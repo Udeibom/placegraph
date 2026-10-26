@@ -2,6 +2,7 @@ import type { Project } from '@placegraph/types';
 import { ProvenanceBuilder, parseJsonFromLlm, replaceVars } from '@placegraph/core';
 import { VISUALIZATION_PROMPT } from './prompts/visualization';
 import { renderConceptSvg } from './providers/images/concept-svg';
+import { generateRender } from './providers/images/render';
 import { LLMProvider, createLLMProvider } from './providers/llm';
 
 export interface VisualizationInput {
@@ -83,22 +84,43 @@ export class VisualizationService {
       metadata: { viewCount: views.length }
     });
 
-    // ── 2. SVG concept diagram — always included ──────────────
+    // ── 2. Photoreal concept renders ──────────────────────────
+    const renderResults = await Promise.all(
+      views.slice(0, 3).map((view, i) =>
+        generateRender({
+          prompt: view.prompt,
+          negativePrompt: view.negativePrompt,
+          width: 1024,
+          height: 1024,
+          seed: 4100 + i
+        })
+      )
+    );
+    const renders = renderResults.filter((r): r is NonNullable<typeof r> => Boolean(r));
+    const renderModels = unique(renders.map((r) => r.model));
+
+    // ── 3. Spatial concept plan — a legible fallback and evidence view ──
     const diagram = renderConceptSvg({
       projectName: input.project.name,
       strategy:    input.strategy,
       concept:     input.concept
     });
 
-    // ── 3. Spatial concept diagram ────────────────────────────
-    const images: string[] = [diagram];
-    const model = 'concept-diagram';
+    const images: string[] = [...renders.map((r) => r.dataUrl), diagram];
+    const model = renderModels.length
+      ? `${renderModels.join('+')}+concept-plan`
+      : 'concept-plan';
 
-    prov.create('inference', `Generated visualization via ${model} — ${images.length} image(s)`, {
+    prov.create('inference', `Generated ${renders.length} concept render(s) via ${renderModels.join(', ') || 'SVG fallback'} plus spatial plan`, {
       parentId: root.id,
-      metadata: { count: images.length, model }
+      metadata: { renderCount: renders.length, imageCount: images.length, model }
     });
 
     return { prov, prompt: firstPrompt, images, model, views };
   }
+}
+
+
+function unique(items: string[]): string[] {
+  return [...new Set(items.filter(Boolean))];
 }

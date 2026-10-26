@@ -19,8 +19,10 @@ export interface LLMResponse {
 }
 export declare class LLMProvider {
     private config;
+    private resolvedModel;
     constructor(config: LLMConfig);
     get available(): boolean;
+    private modelCandidates;
     complete(messages: LLMMessage[], opts?: {
         temperature?: number;
         maxTokens?: number;

@@ -132,7 +132,7 @@ export default function ReviewPage() {
                 cursor: 'pointer', transition: 'all var(--duration-fast) var(--ease)',
               }}
             >
-              "{p.slice(0, 40)}…"
+              &quot;{p.slice(0, 40)}…&quot;
             </button>
           ))}
         </div>
@@ -179,7 +179,7 @@ export default function ReviewPage() {
                   </span>
                 </div>
                 <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', marginBottom: '0.5rem', fontStyle: 'italic' }}>
-                  "{rev.feedback}"
+                  &quot;{rev.feedback}&quot;
                 </p>
                 {rev.diagnosis && (
                   <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
@@ -212,10 +212,10 @@ export default function ReviewPage() {
         }}>
           <div>
             <h2 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.25rem', fontWeight: 700, color: 'var(--ink)' }}>
-              What did Qloo change?
+              Does culture change the recommendation?
             </h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '0.125rem' }}>
-              Runs the same brief twice — once with Qloo cultural intelligence, once without — then isolates the difference.
+              Runs the same brief twice — once with Qloo cultural intelligence, once without — then isolates what changed.
             </p>
           </div>
           <button

@@ -3,6 +3,10 @@ export const ProjectTypeSchema = z.enum([
     'restaurant',
     'hotel',
     'retail',
+    'bar',
+    'cafe',
+    'office',
+    'mixed',
     'hospitality',
     'other'
 ]);

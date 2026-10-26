@@ -7,6 +7,7 @@ import { PipelineNav } from '@/components/PipelineNav';
 import { ReasoningChain } from '@/components/ReasoningChain';
 import { useProject } from '@/components/ProjectView';
 import type { ArchitecturalDecision } from '@placegraph/types';
+import type { ProjectBundle } from '@/lib/api';
 
 function ChainLevel({ label, color, children }: { label: string; color: string; children: React.ReactNode }) {
   return (
@@ -26,7 +27,7 @@ function ChainLevel({ label, color, children }: { label: string; color: string; 
   );
 }
 
-function DecisionExplain({ decisionId, bundle }: { decisionId: string; bundle: any }) {
+function DecisionExplain({ decisionId, bundle }: { decisionId: string; bundle: ProjectBundle }) {
   const analysis = bundle?.analysis;
   if (!analysis) return null;
 
@@ -37,8 +38,8 @@ function DecisionExplain({ decisionId, bundle }: { decisionId: string; bundle: a
     </p>
   );
 
-  const strategy = analysis.strategies.find((s: any) => s.selected) || analysis.strategies.find((s: any) => s.id === analysis.selectedStrategyId);
-  const req = analysis.requirements.find((r: any) => r.zone === decision.zone) ?? analysis.requirements[0];
+  const strategy = analysis.strategies.find((s) => s.selected) || analysis.strategies.find((s) => s.id === analysis.selectedStrategyId);
+  const req = analysis.requirements.find((r) => r.zone === decision.zone) ?? analysis.requirements[0];
 
   return (
     <div>
@@ -129,7 +130,7 @@ function DecisionExplain({ decisionId, bundle }: { decisionId: string; bundle: a
   );
 }
 
-function AllDecisions({ bundle }: { bundle: any }) {
+function AllDecisions({ bundle }: { bundle: ProjectBundle }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const analysis = bundle?.analysis;
   const decisions: ArchitecturalDecision[] = analysis?.decisions ?? [];

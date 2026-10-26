@@ -4,6 +4,7 @@ import type {
   ExperienceRequirement,
   Opportunity,
   Project,
+  QlooContext,
   Review,
   SpatialConcept,
   Strategy
@@ -36,10 +37,55 @@ import { ensureLayout } from './layout';
 export interface OrchestratorInput {
   project: Project;
   useMock?: boolean;
+  noQloo?: boolean;
   guidance?: string;
 }
 
 export type ProgressFn = (stage: string, message: string) => void;
+
+function counterfactualChanges(generic: AnalysisSnapshot, cultural: AnalysisSnapshot): string[] {
+  const targets = affinityTargets(cultural.qlooContext).slice(0, 5);
+  const genericTop = generic.strategies[0];
+  const culturalTop =
+    cultural.strategies.find((s) => s.id === cultural.selectedStrategyId) || cultural.strategies[0];
+  const changes: string[] = [];
+
+  if (targets.length) {
+    changes.push(
+      `Added scored Qloo place affinities: ${targets
+        .map((a) => `${a.target} (${a.strength.toFixed(3)})`)
+        .join(', ')}.`
+    );
+  } else {
+    changes.push('Qloo returned no scored affinities, so the cultural pass could not add graph evidence.');
+  }
+
+  if (culturalTop && genericTop && culturalTop.title !== genericTop.title) {
+    changes.push(
+      `Changed the recommended direction from "${genericTop.title}" to "${culturalTop.title}" (${culturalTop.direction}).`
+    );
+  } else if (culturalTop) {
+    changes.push(`Kept the direction "${culturalTop.title}" but grounded it in scored Qloo evidence instead of inference alone.`);
+  }
+
+  if (cultural.opportunities.some((o) => (o.qlooEstablished || []).length > 0)) {
+    changes.push('Separated scored Qloo affinity evidence from local observation and inference in the opportunity set.');
+  }
+
+  return changes;
+}
+
+function withheldQlooContext(project: Project): QlooContext {
+  return {
+    source: 'mock',
+    entities: [],
+    affinities: [],
+    audienceAffinities: Object.fromEntries(project.audiences.map((a) => [a.name, []])),
+    crossDomain: null,
+    notes: ['Qloo evidence was deliberately withheld for this baseline analysis.'],
+    insufficient: true
+  };
+}
 
 function reviewClip(analysis: AnalysisSnapshot) {
   return {
@@ -127,6 +173,44 @@ function compactQloo(qloo: any) {
       : undefined,
     notes: (qloo.notes || []).slice(0, 3)
   };
+}
+
+function affinityTargets(qloo: any): Array<{ target: string; strength: number }> {
+  const seen = new Set<string>();
+  return (qloo?.affinities || [])
+    .filter((a: any) => typeof a?.target === 'string' && typeof a?.strength === 'number')
+    .sort((a: any, b: any) => b.strength - a.strength)
+    .filter((a: any) => {
+      const key = a.target.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function sanitizeQlooList(value: unknown, qloo: any): string[] {
+  const raw = asTextList(value).join(' ').toLowerCase();
+  if (!raw) return [];
+  return affinityTargets(qloo)
+    .filter((a) => raw.includes(a.target.toLowerCase()))
+    .slice(0, 6)
+    .map((a) => `${a.target} (${a.strength.toFixed(3)})`);
+}
+
+function sanitizeQlooText(value: unknown, qloo: any): string | undefined {
+  const rows = sanitizeQlooList(value, qloo);
+  return rows.length ? rows.join(', ') : undefined;
+}
+
+function affinitySummary(project: Project, qloo: any): string {
+  const rows = affinityTargets(qloo).slice(0, 6);
+  if (!rows.length) {
+    return 'Qloo returned no scored affinities for this location. Cultural evidence is insufficient.';
+  }
+  const place = project.location.neighborhood || project.location.city || 'this location';
+  return `Qloo resolved ${affinityTargets(qloo).length} scored place affinities around ${place}, including ${rows
+    .map((a) => `${a.target} (${a.strength.toFixed(3)})`)
+    .join(', ')}. These are cultural relationships, not a demand forecast.`;
 }
 
 function compactFloorPlan(floorPlan: any) {
@@ -258,11 +342,12 @@ export class AgentOrchestrator {
     prov.setRoot(root.id);
 
     onProgress?.('place', 'Reading location and floor plan…');
-    const [locationContext, qlooContext, floorPlan] = await Promise.all([
-      gatherLocationContext(input.project),
+    const locationContext = await gatherLocationContext(input.project);
+    const [qlooContext, floorPlan] = await Promise.all([
       (async () => {
+        if (input.noQloo) return withheldQlooContext(input.project);
         onProgress?.('culture', 'Gathering Qloo cultural relationships…');
-        return gatherQlooContext(input.project, input.useMock);
+        return gatherQlooContext(input.project, input.useMock, locationContext);
       })(),
       readFloorPlan(input.project, this.llm)
     ]);
@@ -324,6 +409,21 @@ export class AgentOrchestrator {
     }});
 
     snapshot.landscapes = normalizeLandscapes(landscapeJson.landscapes, landscapeFallback);
+    if (snapshot.landscapes.potential) {
+      const actual = affinityTargets(qlooContext);
+      snapshot.landscapes.potential = {
+        ...snapshot.landscapes.potential,
+        summary: affinitySummary(input.project, qlooContext),
+        experiences: actual.slice(0, 10).map((a) => ({
+          name: a.target,
+          category: 'place',
+          notes: `Scored Qloo affinity ${a.strength.toFixed(3)}`,
+          source: 'qloo' as const,
+          affinity: a.strength
+        })),
+        evidenceQuality: qlooContext.insufficient ? 'insufficient' : 'strong'
+      };
+    }
     snapshot.audienceAnalysis = normalizeAudienceAnalysis(landscapeJson.audienceAnalysis, {
       shared: [],
       complementary: [],
@@ -342,7 +442,10 @@ export class AgentOrchestrator {
     }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
     const oppJson = await this.json<any>(oppPrompt, { opportunities: oppFallback });
     const opportunities = (oppJson.opportunities || oppFallback).map((o: any) => normalizeOpportunity(o, runId));
-    snapshot.opportunities = opportunities.length ? opportunities : oppFallback;
+    snapshot.opportunities = (opportunities.length ? opportunities : oppFallback).map((o: any) => ({
+      ...o,
+      qlooEstablished: sanitizeQlooList(o.qlooEstablished, qlooContext)
+    }));
 
     onProgress?.('strategy', 'Drafting distinct strategic directions…');
     const stratFallback = fallbackStrategies(input.project, runId, snapshot.opportunities);
@@ -355,7 +458,10 @@ export class AgentOrchestrator {
     }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
     const stratJson = await this.json<any>(stratPrompt, { strategies: stratFallback });
     const strategies = (stratJson.strategies || stratFallback).map((s: any) => normalizeStrategy(s, runId));
-    snapshot.strategies = strategies.length ? strategies : stratFallback;
+    snapshot.strategies = (strategies.length ? strategies : stratFallback).map((s: any) => ({
+      ...s,
+      qlooEstablished: sanitizeQlooText(s.qlooEstablished, qlooContext)
+    }));
 
     prov.create('inference', `Generated ${snapshot.opportunities.length} opportunities and ${snapshot.strategies.length} strategies`, {
       parentId: root.id
@@ -441,7 +547,7 @@ export class AgentOrchestrator {
       })),
       alternatives: asTextList(d.alternatives),
       constraintsConsidered: asTextList(d.constraintsConsidered),
-      qlooEstablished: asOptionalText(d.qlooEstablished),
+      qlooEstablished: sanitizeQlooText(d.qlooEstablished, analysis.qlooContext),
       locallyEstablished: asOptionalText(d.locallyEstablished),
       inferred: asOptionalText(d.inferred),
       unverified: asOptionalText(d.unverified)
@@ -574,14 +680,19 @@ export class AgentOrchestrator {
   }
 
   async counterfactual(project: Project, cultural: AnalysisSnapshot): Promise<AnalysisSnapshot> {
-    const generic = await this.analyze({ project, useMock: true, guidance: 'Ignore Qloo. Reason only from ordinary architectural knowledge, nearby businesses, and the brief. Do not invent a cultural graph.' });
+    const generic = await this.analyze({
+      project,
+      noQloo: true,
+      guidance:
+        'Qloo is unavailable for this analysis. Reason only from ordinary architectural knowledge, nearby businesses, and the brief. Do not invent cultural affinities, artists, brands, or scores.'
+    });
     const payload = await this.json<any>(
       replaceVars(COUNTERFACTUAL_PROMPT, {
         project,
         generic: {
           strategies: generic.strategies,
           opportunities: generic.opportunities,
-          qloo: generic.qlooContext?.source
+          qloo: 'none'
         },
         cultural: {
           strategies: cultural.strategies,
@@ -605,7 +716,7 @@ export class AgentOrchestrator {
         summary: asText(payload.summary),
         genericStrategy: asText(payload.genericStrategy),
         culturalStrategy: asText(payload.culturalStrategy),
-        whatQlooChanged: asTextList(payload.whatQlooChanged),
+        whatQlooChanged: counterfactualChanges(generic, cultural),
         caveat: asText(payload.caveat)
       },
       updatedAt: nowIso()

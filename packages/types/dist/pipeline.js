@@ -248,6 +248,6 @@ export const PIPELINE_STAGES = [
     { id: 'experience', label: 'Experience requirements' },
     { id: 'architecture', label: 'Architectural decisions' },
     { id: 'concept', label: 'Spatial concept' },
-    { id: 'visualization', label: 'Visualization' },
+    { id: 'visualization', label: 'Concept render' },
     { id: 'review', label: 'Professional review' }
 ];

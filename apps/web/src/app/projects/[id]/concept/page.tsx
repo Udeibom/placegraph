@@ -57,7 +57,7 @@ function RequirementRow({ req }: { req: ExperienceRequirement }) {
   );
 }
 
-function DecisionCard({ decision }: { decision: ArchitecturalDecision }) {
+function DecisionCard({ decision, projectId }: { decision: ArchitecturalDecision; projectId: string }) {
   return (
     <div style={{
       border: '1.5px solid var(--line-2)',
@@ -77,7 +77,7 @@ function DecisionCard({ decision }: { decision: ArchitecturalDecision }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.5rem', marginBottom: '0.625rem' }}>
         {decision.qlooEstablished && (
           <div style={{ padding: '0.375rem 0.5rem', background: 'var(--qloo-bg)', borderRadius: 'var(--radius)' }}>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', marginBottom: '0.125rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Qloo</p>
+            <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', marginBottom: '0.125rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Qloo affinity</p>
             <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)' }}>{decision.qlooEstablished}</p>
           </div>
         )}
@@ -106,7 +106,7 @@ function DecisionCard({ decision }: { decision: ArchitecturalDecision }) {
         </p>
       )}
       <Link
-        href={`/projects/${(decision as any).projectId ?? ''}/explain?decision=${decision.id}`}
+        href={`/projects/${projectId}/explain?decision=${decision.id}`}
         style={{ fontSize: '0.8125rem', color: 'var(--accent)', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
       >
         Why is this here? →
@@ -207,7 +207,7 @@ export default function ConceptPage() {
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {decisions.map((d) => (
-              <DecisionCard key={d.id} decision={{ ...d, projectId: id } as any} />
+              <DecisionCard key={d.id} decision={d} projectId={id} />
             ))}
           </div>
         </section>
@@ -277,9 +277,13 @@ export default function ConceptPage() {
 
       {/* Visualization */}
       <section style={{ marginBottom: '2.5rem' }}>
-        <h2 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.375rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.75rem' }}>
-          Visualization
+        <h2 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.375rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
+          Concept render
         </h2>
+        <p style={{ fontSize: '0.875rem', color: 'var(--muted)', maxWidth: '44rem', lineHeight: 1.65, marginBottom: '1rem' }}>
+          Photoreal views translated from the selected strategy, architectural decisions and spatial concept.
+          The plan remains the evidence view; the renders are the expected building.
+        </p>
 
         {viz ? (
           <div>
@@ -299,25 +303,36 @@ export default function ConceptPage() {
             )}
 
             {viz.images?.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {viz.images.map((img, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src={img}
-                    alt={`Visualization view ${i + 1}`}
-                    style={{
-                      width: '100%', maxWidth: '900px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--line)',
-                      boxShadow: 'var(--shadow-lg)',
-                    }}
-                  />
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {viz.images.map((img, i) => {
+                  const isPlan = img.startsWith('data:image/svg');
+                  return (
+                    <figure key={i} style={{ margin: 0, maxWidth: '900px' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img}
+                        alt={isPlan ? 'Spatial concept plan' : `Concept render ${i + 1}`}
+                        style={{
+                          width: '100%',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px solid var(--line)',
+                          boxShadow: isPlan ? 'var(--shadow-sm)' : 'var(--shadow-lg)',
+                        }}
+                      />
+                      <figcaption style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.375rem' }}>
+                        {isPlan ? 'Spatial concept plan — reasoning evidence' : `Concept render ${i + 1} — expected building`}
+                      </figcaption>
+                    </figure>
+                  );
+                })}
               </div>
             )}
 
-
+            {viz.model && viz.images?.some((img) => !img.startsWith('data:image/svg')) && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--muted-2)', marginTop: '0.75rem' }}>
+                Render model: {viz.model}
+              </p>
+            )}
 
 
             <div style={{ marginTop: '1rem' }}>
@@ -327,14 +342,14 @@ export default function ConceptPage() {
                 disabled={visStreaming}
                 className="pg-btn pg-btn-ghost"
               >
-                {visStreaming ? 'Generating…' : 'Re-generate visualization'}
+                {visStreaming ? 'Rendering…' : 'Re-generate concept renders'}
               </button>
             </div>
           </div>
         ) : (
           <div>
             <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-              Generate a spatial concept diagram from the architectural reasoning chain.
+              Generate photoreal concept renders and a spatial plan from the architectural reasoning chain.
             </p>
             <button
               type="button"
@@ -342,7 +357,7 @@ export default function ConceptPage() {
               disabled={visStreaming || !concept}
               className="pg-btn"
             >
-              {visStreaming ? 'Generating…' : 'Generate visualization'}
+              {visStreaming ? 'Rendering…' : 'Generate concept renders'}
             </button>
           </div>
         )}

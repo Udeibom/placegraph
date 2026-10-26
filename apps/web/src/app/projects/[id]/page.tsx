@@ -25,7 +25,7 @@ export default function ProjectPage() {
   const { bundle, error, loading, setBundle } = useProject(id);
 
   const handleDone = useCallback((b: ProjectBundle) => setBundle(b), [setBundle]);
-  const { streaming, events, error: streamError, start, cancel } =
+  const { streaming, events, error: streamError, start } =
     useStream(id, 'analyze', handleDone);
 
   if (loading) return <ProjectSkeleton />;
@@ -39,9 +39,9 @@ export default function ProjectPage() {
   const city = project.location.city;
   const neighbourhood = project.location.neighborhood;
   const locStr = [neighbourhood, city].filter(Boolean).join(', ');
-  const hasCoords = typeof (analysis?.locationContext as any)?.lat === 'number';
-  const mapLat    = (analysis?.locationContext as any)?.lat;
-  const mapLng    = (analysis?.locationContext as any)?.lng;
+  const mapLat    = analysis?.locationContext?.lat;
+  const mapLng    = analysis?.locationContext?.lng;
+  const hasCoords = typeof mapLat === 'number' && typeof mapLng === 'number';
 
   return (
     <main>
@@ -196,10 +196,10 @@ export default function ProjectPage() {
                 )}
                 {analysis.floorPlan.rooms?.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
-                    {analysis.floorPlan.rooms.map((r: any) => (
+                    {analysis.floorPlan.rooms.map((r) => (
                       <span key={r.name ?? r} style={{ fontSize: '0.75rem', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: '0.125rem 0.5rem', color: 'var(--ink-2)' }}>
-                        {typeof r === 'string' ? r : r.name}
-                        {r.share ? ` ${r.share}%` : ''}
+                        {r.name}
+                        {r.approxShare ? ` ${r.approxShare}%` : ''}
                       </span>
                     ))}
                   </div>
@@ -271,7 +271,7 @@ export default function ProjectPage() {
       </section>
 
       <p style={{ marginTop: '2rem', maxWidth: '44rem', fontSize: '0.8125rem', color: 'var(--muted-2)', lineHeight: 1.65 }}>
-        The agent's objective is not to generate a generic {project.projectType}.
+        The agent&apos;s objective is not to generate a generic {project.projectType}.
         It is to develop a culturally and commercially defensible concept for this property
         and explain why it should exist here. Qloo provides cultural relationships;
         PlaceGraph decides whether they represent a meaningful opportunity.

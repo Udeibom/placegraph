@@ -57,7 +57,7 @@ export default function Home() {
           color: 'var(--accent)',
           marginBottom: '1rem',
         }}>
-          Cultural intelligence → architectural concept
+          Cultural pre-feasibility → architectural concept
         </p>
 
         <h1 style={{
@@ -69,7 +69,7 @@ export default function Home() {
           letterSpacing: '-0.02em',
           marginBottom: '1.25rem',
         }}>
-          The decision before the design.
+          Know who a place is for before you draw it.
         </h1>
 
         <p style={{
@@ -79,8 +79,8 @@ export default function Home() {
           maxWidth: '44rem',
           marginBottom: '0.875rem',
         }}>
-          PlaceGraph investigates what commercial physical experience should exist in a location,
-          for whom, and why — then translates that intelligence into a preliminary architectural concept.
+          PlaceGraph is cultural pre-feasibility for developers, operators and architects: what commercial
+          experience should exist in a location, for whom, and why — before design fees are committed.
         </p>
         <p style={{ fontSize: '0.9375rem', lineHeight: 1.65, color: 'var(--muted)', maxWidth: '44rem' }}>
           Qloo provides cross-domain cultural affinity evidence. PlaceGraph determines which relationships
@@ -122,7 +122,7 @@ export default function Home() {
             'Experience requirements',
             'Architectural decisions',
             'Spatial concept',
-            'Visualization',
+            'Concept render',
             'Professional review',
           ].map((label, i, arr) => (
             <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -45,7 +45,7 @@ export declare const OpportunitySchema: z.ZodObject<{
         metadata?: Record<string, any> | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    type: "alignment" | "whitespace" | "destination" | "mixed";
+    type: "mixed" | "alignment" | "whitespace" | "destination";
     id: string;
     analysisRunId: string;
     title: string;
@@ -70,7 +70,7 @@ export declare const OpportunitySchema: z.ZodObject<{
         metadata?: Record<string, any> | undefined;
     } | undefined;
 }, {
-    type: "alignment" | "whitespace" | "destination" | "mixed";
+    type: "mixed" | "alignment" | "whitespace" | "destination";
     id: string;
     analysisRunId: string;
     title: string;
@@ -1244,7 +1244,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
             metadata?: Record<string, any> | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
-        type: "alignment" | "whitespace" | "destination" | "mixed";
+        type: "mixed" | "alignment" | "whitespace" | "destination";
         id: string;
         analysisRunId: string;
         title: string;
@@ -1269,7 +1269,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
             metadata?: Record<string, any> | undefined;
         } | undefined;
     }, {
-        type: "alignment" | "whitespace" | "destination" | "mixed";
+        type: "mixed" | "alignment" | "whitespace" | "destination";
         id: string;
         analysisRunId: string;
         title: string;
@@ -1829,7 +1829,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
     runId: string;
     projectId: string;
     opportunities: {
-        type: "alignment" | "whitespace" | "destination" | "mixed";
+        type: "mixed" | "alignment" | "whitespace" | "destination";
         id: string;
         analysisRunId: string;
         title: string;
@@ -2171,7 +2171,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         spatialImplications?: string | undefined;
     } | undefined;
     opportunities?: {
-        type: "alignment" | "whitespace" | "destination" | "mixed";
+        type: "mixed" | "alignment" | "whitespace" | "destination";
         id: string;
         analysisRunId: string;
         title: string;
@@ -2363,7 +2363,7 @@ export declare const PIPELINE_STAGES: readonly [{
     readonly label: "Spatial concept";
 }, {
     readonly id: "visualization";
-    readonly label: "Visualization";
+    readonly label: "Concept render";
 }, {
     readonly id: "review";
     readonly label: "Professional review";

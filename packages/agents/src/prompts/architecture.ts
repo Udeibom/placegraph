@@ -41,5 +41,6 @@ Return JSON:
 layout coordinates are percentages of the plan (0-100). They must reflect the floor-plan reading when usable, and must change with the strategy (not a generic restaurant diagram).
 
 Distinguish evidence from inference. Do not invent demand certainty.
+Qloo search matches are not affinity evidence; only scored affinities may be cited as Qloo established.
 The architecture must change if the cultural objective changed — it is the visible consequence of the strategy.
 `;

@@ -12,6 +12,11 @@ Qloo cultural evidence — merged affinities across all audiences (treat as cult
 Per-audience Qloo affinities (each audience queried separately):
 {audienceAffinities}
 
+Evidence rules — read before interpreting Qloo:
+- Qloo ENTITY SEARCH MATCHES are not affinity evidence. A matched place, brand or artist only proves the entity exists in Qloo, not that this audience has a relationship with it.
+- Only scored Qloo AFFINITIES may be described as "Qloo established" or used as affinity evidence.
+- If no affinities resolved, say the potential landscape is insufficient. Do not promote search matches into cultural relationships.
+
 Instructions for audience affinities:
 - Where multiple audiences share affinities with the same entity or domain, this is a STRONGER signal than if only one audience shows it.
 - Where audiences diverge significantly, note this in audienceAnalysis and explain the spatial implication.
@@ -62,6 +67,7 @@ Rules:
 - Potential landscape is from Qloo relationships that may not be visible in buildings.
 - Proposed landscape is how a new project could interact: reinforce, complement, compete, attract, or feel transplanted.
 - If Qloo source is mock or evidence is thin, set evidenceQuality to insufficient or moderate and say so in summary.
+- Potential landscape experiences must be scored affinities only; never list a search-only entity match there.
 - Never claim cultural affinity proves commercial demand.
 - Do not average multiple audiences into one persona.
 `;
@@ -106,6 +112,12 @@ Qloo-informed analysis:
 {cultural}
 
 Explain what cultural intelligence changed. Do not claim the Qloo building will perform better commercially.
+
+Rules:
+- The generic analysis contains NO Qloo evidence. Never attribute affinities, artists, brands or scores to it.
+- Only cite Qloo entities that appear in the Qloo-informed strategies or opportunities.
+- Do not invent artists, brands, cross-domain scores or numeric affinities. If the supplied analysis does not contain them, they do not exist.
+- Separate scored Qloo place affinities from local observation and inference.
 
 Return JSON:
 {

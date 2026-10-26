@@ -3,6 +3,7 @@ import { LLMProvider } from './providers/llm';
 export interface OrchestratorInput {
     project: Project;
     useMock?: boolean;
+    noQloo?: boolean;
     guidance?: string;
 }
 export type ProgressFn = (stage: string, message: string) => void;
@@ -17,7 +18,7 @@ export declare class AgentOrchestrator {
     counterfactual(project: Project, cultural: AnalysisSnapshot): Promise<AnalysisSnapshot>;
     discoverOpportunities(input: OrchestratorInput): Promise<{
         opportunities: {
-            type: "alignment" | "whitespace" | "destination" | "mixed";
+            type: "mixed" | "alignment" | "whitespace" | "destination";
             id: string;
             analysisRunId: string;
             title: string;
@@ -67,7 +68,7 @@ export declare class AgentOrchestrator {
             runId: string;
             projectId: string;
             opportunities: {
-                type: "alignment" | "whitespace" | "destination" | "mixed";
+                type: "mixed" | "alignment" | "whitespace" | "destination";
                 id: string;
                 analysisRunId: string;
                 title: string;
@@ -365,7 +366,7 @@ export declare class AgentOrchestrator {
             runId: string;
             projectId: string;
             opportunities: {
-                type: "alignment" | "whitespace" | "destination" | "mixed";
+                type: "mixed" | "alignment" | "whitespace" | "destination";
                 id: string;
                 analysisRunId: string;
                 title: string;

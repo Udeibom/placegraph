@@ -1,0 +1,7 @@
+.git
+.vercel
+.turbo
+**/node_modules
+**/.next
+**/.turbo
+.env*

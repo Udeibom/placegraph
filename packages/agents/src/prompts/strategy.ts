@@ -31,7 +31,8 @@ Each strategy must include:
 - inferred: what you inferred without direct evidence
 
 Rules:
-- qlooEstablished must name specific entities or affinity scores — never write vague phrases like "Qloo data shows cultural interest"
+- qlooEstablished must name specific scored affinity entities or affinity scores — never write vague phrases like "Qloo data shows cultural interest"
+- Qloo entity search matches are not affinity evidence and must not be presented as support.
 - If Qloo evidence does not support a strategy, say so in uncertainties and lower evidenceRefs accordingly
 - Do not repeat the same core concept with different names
 

@@ -29,7 +29,7 @@ const LANDSCAPE_BG: Record<string, string> = {
 
 const LANDSCAPE_TITLES: Record<string, { title: string; sub: string }> = {
   existing:  { title: 'Existing landscape', sub: 'Nearby commercial environment — observed, not preference' },
-  potential: { title: 'Potential landscape', sub: 'Cultural affinities from Qloo — relationship evidence only' },
+  potential: { title: 'Potential landscape', sub: 'Scored cultural affinities from Qloo — relationship evidence only' },
   proposed:  { title: 'Proposed interaction', sub: 'How a new project could position relative to what exists' },
 };
 
@@ -93,7 +93,7 @@ function LandscapeCard({ landscape }: { landscape: CulturalLandscape }) {
                   {e.category && <span style={{ color: 'var(--muted-2)' }}> · {e.category}</span>}
                   {typeof e.affinity === 'number' && (
                     <span style={{ color: 'var(--qloo)', marginLeft: '0.25rem', fontWeight: 600 }}>
-                      {(e.affinity * 100).toFixed(0)}%
+                      Qloo {e.affinity.toFixed(3)}
                     </span>
                   )}
                 </span>
@@ -158,7 +158,7 @@ function OpportunityCard({ op }: { op: Opportunity }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
           <EvidenceCol
-            label="Qloo established"
+            label="Qloo affinity"
             items={op.qlooEstablished}
             color="var(--qloo)"
             bg="var(--qloo-bg)"
@@ -312,8 +312,8 @@ export default function AnalysisPage() {
           Opportunity hypotheses
         </h2>
         <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1.5rem' }}>
-          Three genuinely different market positions. Each shows what Qloo established, what local evidence supports,
-          and what the agent inferred. Commercial viability is not asserted.
+          Three genuinely different market positions. Each separates scored Qloo affinities from local evidence,
+          search-only matches, and agent inference. Commercial viability is not asserted.
         </p>
         {analysis.opportunities?.map((op) => (
           <OpportunityCard key={op.id} op={op} />

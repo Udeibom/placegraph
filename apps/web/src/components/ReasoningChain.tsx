@@ -22,7 +22,7 @@ const BADGE_CLASS: Record<string, string> = {
 };
 
 function ChainNode({ node, depth = 0 }: { node: ProvenanceNode; depth?: number }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded] = useState(true);
   const cfg = KIND_CONFIG[node.kind] ?? { label: node.kind, cssClass: 'chain-node-decision', icon: '○' };
   const hasRefs = (node.qlooRefs?.length ?? 0) > 0 || (node.refs?.length ?? 0) > 0;
 

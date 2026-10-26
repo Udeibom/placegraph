@@ -59,7 +59,7 @@ export default function ReportPage() {
       {/* Report header */}
       <div style={{ marginBottom: '2.5rem', paddingBottom: '1.5rem', borderBottom: '3px solid var(--accent)' }}>
         <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent)', marginBottom: '0.75rem' }}>
-          PlaceGraph · Cultural Intelligence Report
+          PlaceGraph · Cultural pre-feasibility brief
         </p>
         <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.18, marginBottom: '0.375rem' }}>
           {project.name}
@@ -109,6 +109,73 @@ export default function ReportPage() {
 
       {analysis && (
         <>
+          {/* Decision brief */}
+          {strategy && (
+            <Section title="Decision brief">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div style={{ padding: '0.875rem 1rem', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--radius-md)' }}>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>Recommended position</p>
+                  <p style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--ink)', lineHeight: 1.45 }}>{strategy.title}</p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '0.25rem' }}>{strategy.whoServes}</p>
+                </div>
+                <div style={{ padding: '0.875rem 1rem', background: 'var(--qloo-bg)', border: '1px solid rgba(181,129,74,0.25)', borderRadius: 'var(--radius-md)' }}>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.25rem' }}>Cultural proof</p>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                    {(analysis.qlooContext?.affinities ?? []).slice(0, 4).map((a: { target?: string }) => a.target).filter(Boolean).join(' · ') || 'No scored affinity evidence resolved.'}
+                  </p>
+                </div>
+              </div>
+
+              {analysis.concept?.zones?.length ? (
+                <div style={{ marginBottom: '1rem' }}>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-2)', marginBottom: '0.375rem' }}>Program moves</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                    {analysis.concept.zones.slice(0, 8).map((z: { name: string; purpose?: string }) => (
+                      <span key={z.name} style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', border: '1px solid var(--line)', borderRadius: '999px', padding: '0.175rem 0.625rem', background: 'var(--surface)' }}>
+                        {z.name}{z.purpose ? ` — ${z.purpose}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {(strategy.risks?.length || strategy.uncertainties?.length) ? (
+                <div>
+                  <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--assumption)', marginBottom: '0.375rem' }}>Open questions before committing</p>
+                  <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                    {[...(strategy.risks ?? []), ...(strategy.uncertainties ?? [])].slice(0, 4).map((r: string, i: number) => (
+                      <li key={i} style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: '0.2rem' }}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Section>
+          )}
+
+          {/* Concept renders */}
+          {analysis.visualizations?.[0]?.images?.length ? (
+            <Section title="Concept render">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                {analysis.visualizations[0].images.map((img: string, i: number) => {
+                  const isPlan = img.startsWith('data:image/svg');
+                  return (
+                    <figure key={i} style={{ margin: 0, breakInside: 'avoid' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img}
+                        alt={isPlan ? 'Spatial concept plan' : `Concept render ${i + 1}`}
+                        style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--line)' }}
+                      />
+                      <figcaption style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.25rem' }}>
+                        {isPlan ? 'Spatial concept plan' : `Concept render ${i + 1} — expected building`}
+                      </figcaption>
+                    </figure>
+                  );
+                })}
+              </div>
+            </Section>
+          ) : null}
+
           {/* Evidence sources */}
           <Section title="Evidence sources">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.75rem' }}>
@@ -117,8 +184,9 @@ export default function ReportPage() {
                 <p style={{ fontWeight: 500, color: 'var(--ink-2)' }}>{analysis.intelligenceMode ?? '—'}</p>
               </div>
               <div style={{ padding: '0.75rem', border: '1px solid var(--line-2)', borderRadius: 'var(--radius)' }}>
-                <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>Qloo</p>
+                <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>Qloo affinity</p>
                 <p style={{ fontWeight: 500, color: 'var(--qloo)' }}>{analysis.qlooContext?.source ?? '—'}</p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.125rem' }}>{analysis.qlooContext?.affinities?.length ?? 0} scored affinities</p>
               </div>
               <div style={{ padding: '0.75rem', border: '1px solid var(--line-2)', borderRadius: 'var(--radius)' }}>
                 <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>Location</p>
@@ -173,7 +241,7 @@ export default function ReportPage() {
                 <div key={d.id} style={{ padding: '0.875rem 1rem', border: '1px solid var(--line-2)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--radius)', marginBottom: '0.5rem' }}>
                   {d.zone && <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted-2)', marginBottom: '0.125rem' }}>{d.zone}</p>}
                   <p style={{ fontWeight: 500, fontSize: '0.9375rem', color: 'var(--ink)', marginBottom: '0.375rem' }}>{d.decision}</p>
-                  {d.qlooEstablished && <p style={{ fontSize: '0.8125rem', color: 'var(--qloo)' }}>Qloo: {d.qlooEstablished}</p>}
+                  {d.qlooEstablished && <p style={{ fontSize: '0.8125rem', color: 'var(--qloo)' }}>Qloo affinity: {d.qlooEstablished}</p>}
                   {d.inferred        && <p style={{ fontSize: '0.8125rem', color: 'var(--inference)' }}>Inferred: {d.inferred}</p>}
                   {d.unverified      && <p style={{ fontSize: '0.8125rem', color: 'var(--assumption)' }}>⚠ {d.unverified}</p>}
                 </div>

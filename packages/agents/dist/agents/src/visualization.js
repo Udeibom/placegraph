@@ -1,7 +1,7 @@
 import { ProvenanceBuilder, parseJsonFromLlm, replaceVars } from '@placegraph/core';
 import { VISUALIZATION_PROMPT } from './prompts/visualization';
-import { createHFImageProvider } from './providers/images/hf';
 import { renderConceptSvg } from './providers/images/concept-svg';
+import { generateRender } from './providers/images/render';
 import { createLLMProvider } from './providers/llm';
 export class VisualizationService {
     llm;
@@ -55,36 +55,33 @@ export class VisualizationService {
             parentId: root.id,
             metadata: { viewCount: views.length }
         });
-        // ── 2. SVG concept diagram — always included ──────────────
+        // ── 2. Photoreal concept renders ──────────────────────────
+        const renderResults = await Promise.all(views.slice(0, 3).map((view, i) => generateRender({
+            prompt: view.prompt,
+            negativePrompt: view.negativePrompt,
+            width: 1024,
+            height: 1024,
+            seed: 4100 + i
+        })));
+        const renders = renderResults.filter((r) => Boolean(r));
+        const renderModels = unique(renders.map((r) => r.model));
+        // ── 3. Spatial concept plan — a legible fallback and evidence view ──
         const diagram = renderConceptSvg({
             projectName: input.project.name,
             strategy: input.strategy,
             concept: input.concept
         });
-        // ── 3. Generate images per view (or SVG only if no HF_TOKEN) ─
-        let images = [];
-        let model = 'concept-diagram';
-        if (process.env.HF_TOKEN) {
-            const hf = createHFImageProvider();
-            const results = await Promise.allSettled(views.map((v) => hf.generate({ prompt: v.prompt, negativePrompt: v.negativePrompt, width: 1024, height: 768 })));
-            for (const r of results) {
-                if (r.status === 'fulfilled' && r.value.images?.length) {
-                    images.push(...r.value.images);
-                    model = r.value.model;
-                }
-            }
-            // SVG always appended at the end
-            images.push(diagram);
-        }
-        else {
-            // No HF_TOKEN — SVG only. No mock images (misleading).
-            images = [diagram];
-            model = 'concept-diagram';
-        }
-        prov.create('inference', `Generated visualization via ${model} — ${images.length} image(s)`, {
+        const images = [...renders.map((r) => r.dataUrl), diagram];
+        const model = renderModels.length
+            ? `${renderModels.join('+')}+concept-plan`
+            : 'concept-plan';
+        prov.create('inference', `Generated ${renders.length} concept render(s) via ${renderModels.join(', ') || 'SVG fallback'} plus spatial plan`, {
             parentId: root.id,
-            metadata: { count: images.length, model, hfEnabled: !!process.env.HF_TOKEN }
+            metadata: { renderCount: renders.length, imageCount: images.length, model }
         });
         return { prov, prompt: firstPrompt, images, model, views };
     }
+}
+function unique(items) {
+    return [...new Set(items.filter(Boolean))];
 }
