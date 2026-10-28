@@ -1,5 +1,6 @@
 import { createQlooClient, hasQlooKey, QlooMockClient, type QlooAffinity, type QlooEntity } from '@placegraph/qloo';
 import type { LocationContext, Project, QlooContext } from '@placegraph/types';
+import { deriveCulturalPatterns, projectAllowsEventProgramming } from './cultural-patterns';
 
 /**
  * Gather Qloo cultural context.
@@ -40,15 +41,22 @@ export async function gatherQlooContext(
       audienceAffinities[aud.name] = await mock.getAffinities(`${aud.name} ${loc}`);
     }
 
+    const { culturalPatterns, culturalThesis } = deriveCulturalPatterns(affinities, {
+      allowsEventProgramming: projectAllowsEventProgramming(project)
+    });
+
     return {
       source: 'mock',
       entities,
       affinities,
       audienceAffinities,
       crossDomain,
+      culturalPatterns,
+      culturalThesis,
       notes: [
         'Qloo is running in mock mode (no API key or mock forced). ' +
         'Affinities are illustrative cultural relationships, not live graph evidence.',
+        'Cultural patterns are inferred from scored place genres; they are not additional Qloo scores.',
       ],
       insufficient: true,
     };
@@ -198,12 +206,25 @@ export async function gatherQlooContext(
     );
   }
 
+  const { culturalPatterns, culturalThesis } = deriveCulturalPatterns(affinities, {
+    allowsEventProgramming: projectAllowsEventProgramming(project)
+  });
+  if (culturalPatterns.length) {
+    notes.push(
+      `Cultural patterns group scored place genres into ${culturalPatterns
+        .map((pattern) => pattern.label.toLowerCase())
+        .join(', ')}. They are inferred from affinities, not additional Qloo scores.`
+    );
+  }
+
   return {
     source: 'live',
     entities,
     affinities,
     audienceAffinities,
     crossDomain,
+    culturalPatterns,
+    culturalThesis,
     notes,
     insufficient: affinities.length < 3
   };

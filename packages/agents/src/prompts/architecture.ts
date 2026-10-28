@@ -7,6 +7,7 @@ Project (location, type, constraints): {project}
 Floor-plan reading (drawing or brief — site-specific, not decoration): {floorPlan}
 Qloo context: {qlooContext}
 Evidence gate: {evidenceGate}
+Hard operational constraints: {hardConstraints}
 
 Return JSON:
 {
@@ -43,4 +44,6 @@ layout coordinates are percentages of the plan (0-100). They must reflect the fl
 Distinguish evidence from inference. Do not invent demand certainty.
 Qloo search matches are not affinity evidence; only scored affinities may be cited as Qloo established.
 The architecture must change if the cultural objective changed — it is the visible consequence of the strategy.
+
+The Qloo context includes culturalPatterns and culturalThesis. The concept must express at least two named patterns spatially and operationally, and say which pattern each zone serves. If the strategy is a hybrid, the plan must show the quiet core, the sociable edge, and the public commerce/arrival threshold as distinct zones — not one undifferentiated room. Operational constraints override cultural implications: if event programming is out of scope, do not design a convertible events hall; translate gathering into everyday ritual, hosting and small-group flexibility.
 `;

@@ -1,9 +1,11 @@
 import type { Project } from '@placegraph/types';
-import { ProvenanceBuilder, parseJsonFromLlm, replaceVars } from '@placegraph/core';
-import { VISUALIZATION_PROMPT } from './prompts/visualization';
+import { ProvenanceBuilder } from '@placegraph/core';
+import {
+  VISUALIZATION_NEGATIVE_PROMPT,
+  VISUALIZATION_VIEWS
+} from './prompts/visualization';
 import { renderConceptSvg } from './providers/images/concept-svg';
 import { generateRender } from './providers/images/render';
-import { LLMProvider, createLLMProvider } from './providers/llm';
 
 export interface VisualizationInput {
   project: Project;
@@ -15,78 +17,37 @@ export interface VisualizationInput {
   style?: string;
 }
 
-interface ViewPrompt {
+export interface ViewPrompt {
   label: string;
   prompt: string;
   negativePrompt: string;
 }
 
+export type VisualizationResult = {
+  prov: ProvenanceBuilder;
+  prompt: string;
+  images: string[];
+  model: string;
+  views: ViewPrompt[];
+};
+
 export class VisualizationService {
-  private llm: LLMProvider;
-
-  constructor(llm?: LLMProvider) {
-    this.llm = llm || createLLMProvider();
-  }
-
-  async generateVisualization(input: VisualizationInput) {
+  async generateVisualization(input: VisualizationInput): Promise<VisualizationResult> {
     const prov = new ProvenanceBuilder();
-    const root = prov.create('inference', 'Visualization derived from the reasoning chain, not from raw Qloo tags', {
+    const root = prov.create('inference', 'Visualization derived from the selected concept, decisions and spatial brief', {
       parentId: null
     });
     prov.setRoot(root.id);
 
-    const promptTemplate = replaceVars(VISUALIZATION_PROMPT, {
-      project:      input.project,
-      strategy:     input.strategy,
-      decisions:    input.decisions,
-      concept:      input.concept?.organization ?? JSON.stringify(input.concept ?? {}),
-      requirements: input.requirements
-    });
+    const views = buildVisualizationPrompts(input);
 
-    // ── 1. Ask the LLM to produce three view prompts ──────────
-    let views: ViewPrompt[] = [];
-    let firstPrompt = '';
-
-    if (this.llm.available) {
-      try {
-        const resp = await this.llm.complete(
-          [
-            { role: 'system', content: 'You are an architectural visualization expert. Return valid JSON only, no markdown.' },
-            { role: 'user', content: promptTemplate }
-          ],
-          { json: true, maxTokens: 1600 }
-        );
-        const parsed = parseJsonFromLlm<{ views?: ViewPrompt[] }>(resp.content, {});
-        views = Array.isArray(parsed?.views) ? parsed.views : [];
-      } catch {
-        views = [];
-      }
-    }
-
-    // Fallback: build a single view from strategy + concept
-    if (!views.length) {
-      const stratTitle   = input.strategy?.title ?? input.project.name;
-      const organization = input.concept?.organization ?? `${input.project.projectType} in ${input.project.location.city}`;
-      const materials    = (input.concept?.materials ?? []).slice(0, 3).join(', ') || 'natural materials';
-      views = [
-        {
-          label: 'Primary interior',
-          prompt: `Interior architectural photography, ${stratTitle}, ${organization}, ${materials}, natural lighting, photorealistic, 24mm wide angle, empty space`,
-          negativePrompt: 'blurry, generic, stock photo, neon, plastic, oversaturated, cartoon, crowds',
-        },
-      ];
-    }
-
-    firstPrompt = views[0]?.prompt ?? '';
-
-    prov.create('inference', `Derived ${views.length} visualization prompt(s) from strategy, requirements and decisions`, {
+    prov.create('inference', `Built ${views.length} coherent concept views from the selected concept`, {
       parentId: root.id,
-      metadata: { viewCount: views.length }
+      metadata: { viewCount: views.length, labels: views.map((view) => view.label) }
     });
 
-    // ── 2. Photoreal concept renders ──────────────────────────
     const renderResults = await Promise.all(
-      views.slice(0, 3).map((view, i) =>
+      views.map((view, i) =>
         generateRender({
           prompt: view.prompt,
           negativePrompt: view.negativePrompt,
@@ -96,10 +57,13 @@ export class VisualizationService {
         })
       )
     );
-    const renders = renderResults.filter((r): r is NonNullable<typeof r> => Boolean(r));
+    const rendered = renderResults.flatMap((render, i) =>
+      render ? [{ render, view: views[i] }] : []
+    );
+    const renders = rendered.map((item) => item.render);
+    const renderedViews = rendered.map((item) => item.view);
     const renderModels = unique(renders.map((r) => r.model));
 
-    // ── 3. Spatial concept plan — a legible fallback and evidence view ──
     const diagram = renderConceptSvg({
       projectName: input.project.name,
       strategy:    input.strategy,
@@ -111,16 +75,94 @@ export class VisualizationService {
       ? `${renderModels.join('+')}+concept-plan`
       : 'concept-plan';
 
-    prov.create('inference', `Generated ${renders.length} concept render(s) via ${renderModels.join(', ') || 'SVG fallback'} plus spatial plan`, {
+    prov.create('inference', `Generated ${renders.length} coherent concept render(s) via ${renderModels.join(', ') || 'SVG fallback'} plus spatial plan`, {
       parentId: root.id,
       metadata: { renderCount: renders.length, imageCount: images.length, model }
     });
 
-    return { prov, prompt: firstPrompt, images, model, views };
+    const prompt = views.map((view) => `${view.label}\n${view.prompt}`).join('\n\n');
+
+    return { prov, prompt, images, model, views: renderedViews };
   }
 }
 
+export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt[] {
+  const concept = input.concept ?? {};
+  const conceptName = clean(input.strategy?.title) || input.project.name;
+  const location = unique([
+    input.project.location?.neighborhood,
+    input.project.location?.city
+  ]).join(', ');
+  const zones = (concept.zones ?? [])
+    .map((zone: any) => clean(zone?.name))
+    .filter(Boolean)
+    .slice(0, 6)
+    .join('; ');
+  const materials = (concept.materials ?? [])
+    .map(clean)
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(', ');
+  const lighting = (concept.lighting ?? [])
+    .map(clean)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('; ');
+  const furniture = (concept.furniture ?? [])
+    .map(clean)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(', ');
+  const common = [
+    `Building: ${input.project.projectType} in ${location || 'the project site'}.`,
+    concept.organization ? `Spatial idea: ${clause(concept.organization, 180)}.` : '',
+    zones ? `Zones: ${trim(zones, 240)}.` : '',
+    materials ? `Materials: ${trim(materials, 160)}.` : ''
+  ].filter(Boolean);
 
-function unique(items: string[]): string[] {
-  return [...new Set(items.filter(Boolean))];
+  const noText =
+    'Do not render legible words, signage copy, brand names, logos or watermarks; represent signage only as an abstract carved pattern.';
+
+  return VISUALIZATION_VIEWS.map((view) => {
+    const parts = [...common];
+
+    if (view.key === 'cutaway' || view.key === 'exterior') {
+      if (concept.exterior) parts.push(`Exterior: ${clause(stripSignage(concept.exterior), 180)}.`);
+    }
+
+    if (view.key === 'cutaway' || view.key === 'interior') {
+      if (lighting) parts.push(`Lighting: ${trim(lighting, 160)}.`);
+      if (furniture) parts.push(`Furniture: ${trim(furniture, 140)}.`);
+    }
+
+    parts.push(noText);
+
+    return {
+      label: view.label,
+      prompt: `${view.composition} ${parts.join(' ')}`,
+      negativePrompt: VISUALIZATION_NEGATIVE_PROMPT
+    };
+  });
+}
+
+function clean(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  return String(value).replace(/\s+/g, ' ').trim();
+}
+
+function stripSignage(value: unknown): string {
+  return clean(value).replace(/\b(signage|signs?|lettering|logos?|brand names?|wordmarks?)\b/gi, 'carved pattern');
+}
+
+function clause(value: unknown, max: number): string {
+  return trim(clean(value).replace(/[.。]+$/, ''), max);
+}
+
+function trim(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+}
+
+function unique(items: Array<string | undefined>): string[] {
+  return [...new Set(items.map((item) => clean(item)).filter(Boolean))];
 }

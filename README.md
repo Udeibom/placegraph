@@ -1,12 +1,12 @@
 # PlaceGraph
 
-Agentic cultural-intelligence and architectural design for commercial space.
+Qloo-powered cultural intelligence agent for deciding what kind of place should be built, for whom, and why — before committing significant capital.
 
 The working path is:
 
-**Place + audience + objective → cultural intelligence → opportunity → strategy → experience requirements → architecture → visualization → professional review**
+**Business/project idea → Location + audience + objective → Qloo cultural intelligence → Cultural opportunities → Possible experience concepts → Evidence-based concept recommendation → Experience strategy → Spatial/architectural implications → Concept render → Review**
 
-This is a usable local product loop, not a hosted SaaS (no accounts, billing, or construction documentation). Without API keys it still runs using OSM location context, Qloo mocks, structured reasoning fallbacks, and spatial diagrams. With `QLOO_API_KEY` and `GROQ_API_KEY` the same screens use live cultural evidence and LLM reasoning.
+PlaceGraph evaluates possible experience concepts using Qloo-derived cultural signals, explains why alternatives may be weaker, and shows how Qloo changes the investment decision. Architecture/design is a downstream translation, not the starting point. This is a usable local product loop (no accounts, billing, or construction documentation). Without API keys it still runs using OSM location context, Qloo mocks, structured reasoning fallbacks, and spatial diagrams. With `QLOO_API_KEY` and `GROQ_API_KEY` the same screens use live cultural evidence and LLM reasoning.
 
 ## Run it
 

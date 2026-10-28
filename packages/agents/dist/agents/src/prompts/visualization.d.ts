@@ -1,1 +1,14 @@
-export declare const VISUALIZATION_PROMPT = "You are producing precise architectural photography prompts for AI image generation.\n\nProject: {project}\n\nSelected strategy: {strategy}\n\nArchitectural decisions:\n{decisions}\n\nSpatial concept organization: {concept}\n\nExperience requirements: {requirements}\n\nGenerate THREE distinct visualization prompts that derive directly from the architectural decisions above \u2014 NOT from generic descriptions of the space type.\n\nEach prompt must:\n- Reference specific materials, spatial qualities, or features named in the decisions\n- Use correct architectural photography language (camera angle, lens quality, lighting quality, time of day)\n- Identify a specific spatial zone and mood\n- Include a negative prompt to suppress common AI artifacts\n\nReturn JSON only, no surrounding text:\n{\n  \"views\": [\n    {\n      \"label\": \"Exterior arrival\",\n      \"prompt\": \"Architectural photography of [specific facade description derived from decisions], [specific materials], [lighting quality \u2014 e.g. overcast northern light], [time of day], [lens \u2014 e.g. 35mm], high detail, photorealistic\",\n      \"negativePrompt\": \"blurry, generic, stock photo, neon, plastic, oversaturated, cartoon, people blocking facade, logo signs\"\n    },\n    {\n      \"label\": \"Primary interior\",\n      \"prompt\": \"Interior architectural photography, [specific primary zone from concept], [specific materials from decisions], [lighting quality], [spatial character], empty space, no people, photorealistic, 24mm wide angle\",\n      \"negativePrompt\": \"cluttered, plastic, generic restaurant, chain, oversaturated, cartoon, illustration, crowds\"\n    },\n    {\n      \"label\": \"Material detail\",\n      \"prompt\": \"Architectural detail photograph, [specific material junction or surface from decisions], natural lighting, macro detail, 85mm, shallow depth of field, photorealistic\",\n      \"negativePrompt\": \"blurry background only, stock photo, generic, oversaturated, cartoon\"\n    }\n  ]\n}\n";
+export declare const VISUALIZATION_VIEWS: readonly [{
+    readonly key: "cutaway";
+    readonly label: "Complete building cutaway";
+    readonly composition: string;
+}, {
+    readonly key: "exterior";
+    readonly label: "Exterior — complete building";
+    readonly composition: string;
+}, {
+    readonly key: "interior";
+    readonly label: "Interior — main hall";
+    readonly composition: string;
+}];
+export declare const VISUALIZATION_NEGATIVE_PROMPT = "cropped building, collage, split screen, multiple buildings, facade-only, floor plan, diagram, labels, text, lettering, signage, logos, watermark, blurry, stock photo, oversaturated, cartoon, people, crowds";

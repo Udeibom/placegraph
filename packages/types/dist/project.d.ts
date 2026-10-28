@@ -50,7 +50,9 @@ export declare const ProjectSchema: z.ZodObject<{
         neighborhood?: string | undefined;
     }>;
     projectType: z.ZodEnum<["restaurant", "hotel", "retail", "bar", "cafe", "office", "mixed", "hospitality", "other"]>;
+    businessType: z.ZodOptional<z.ZodString>;
     objective: z.ZodString;
+    investmentIntent: z.ZodOptional<z.ZodString>;
     budgetRange: z.ZodOptional<z.ZodString>;
     floorArea: z.ZodOptional<z.ZodString>;
     floorPlanUrl: z.ZodOptional<z.ZodString>;
@@ -68,6 +70,7 @@ export declare const ProjectSchema: z.ZodObject<{
         priority?: number | undefined;
         description?: string | undefined;
     }>, "many">>;
+    targetAudience: z.ZodOptional<z.ZodString>;
     constraints: z.ZodDefault<z.ZodArray<z.ZodObject<{
         key: z.ZodString;
         value: z.ZodString;
@@ -107,10 +110,13 @@ export declare const ProjectSchema: z.ZodObject<{
         type: "number" | "boolean" | "text";
         key: string;
     }[];
+    businessType?: string | undefined;
+    investmentIntent?: string | undefined;
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
     floorPlanUrl?: string | undefined;
     workspaceId?: string | undefined;
+    targetAudience?: string | undefined;
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
 }, {
@@ -126,6 +132,8 @@ export declare const ProjectSchema: z.ZodObject<{
     projectType: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other";
     objective: string;
     status?: "draft" | "analyzing" | "strategizing" | "designing" | "review" | "complete" | undefined;
+    businessType?: string | undefined;
+    investmentIntent?: string | undefined;
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
     floorPlanUrl?: string | undefined;
@@ -135,6 +143,7 @@ export declare const ProjectSchema: z.ZodObject<{
         priority?: number | undefined;
         description?: string | undefined;
     }[] | undefined;
+    targetAudience?: string | undefined;
     constraints?: {
         value: string;
         key: string;

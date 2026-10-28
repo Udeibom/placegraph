@@ -96,6 +96,54 @@ function StrategyCard({
           </div>
         </div>
 
+        {/* Concept evaluation (Qloo-informed) */}
+        {(strategy.fitForAudience || strategy.culturalRelationships?.length || strategy.opportunityCaptured || strategy.qlooEvidenceSummary) && (
+          <div style={{
+            padding: '0.875rem 1rem', marginBottom: '1rem',
+            background: 'var(--qloo-bg)', borderRadius: 'var(--radius)',
+            border: '1px solid rgba(181,129,74,0.25)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)' }}>
+                Concept evaluation (Qloo-informed)
+              </p>
+              {typeof strategy.evaluationScore === 'number' && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--qloo)' }}>Cultural fit: {strategy.evaluationScore}/10</span>
+              )}
+            </div>
+            {strategy.fitForAudience && (
+              <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
+                <strong style={{ fontWeight: 600 }}>Why it fits the audience:</strong> {strategy.fitForAudience}
+              </p>
+            )}
+            {strategy.culturalRelationships?.length ? (
+              <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
+                <strong style={{ fontWeight: 600 }}>Cultural relationships (Qloo):</strong> {strategy.culturalRelationships.join(', ')}
+              </p>
+            ) : null}
+            {strategy.opportunityCaptured && (
+              <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
+                <strong style={{ fontWeight: 600 }}>Opportunity captured:</strong> {strategy.opportunityCaptured}
+              </p>
+            )}
+            {strategy.qlooEvidenceSummary && (
+              <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                <strong style={{ fontWeight: 600 }}>Qloo intelligence:</strong> {strategy.qlooEvidenceSummary}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Why alternatives may be weaker */}
+        {strategy.whyWeakerThanAlternatives && (
+          <div style={{ marginBottom: '1rem', padding: '0.75rem 0.875rem', background: 'var(--surface)', borderRadius: 'var(--radius)', border: '1px solid var(--line-2)' }}>
+            <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>
+              Why alternatives may be weaker
+            </p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6 }}>{strategy.whyWeakerThanAlternatives}</p>
+          </div>
+        )}
+
         {/* Physical experience */}
         {strategy.physicalExperience && (
           <div style={{
@@ -104,7 +152,7 @@ function StrategyCard({
             border: '1px solid var(--line-2)',
           }}>
             <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>
-              Physical experience
+              Physical experience (downstream translation)
             </p>
             <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>
               {strategy.physicalExperience}
@@ -126,7 +174,7 @@ function StrategyCard({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginBottom: '0.875rem' }}>
           {strategy.qlooEstablished && (
             <div style={{ padding: '0.5rem 0.625rem', background: 'var(--qloo-bg)', borderRadius: 'var(--radius)', border: '1px solid rgba(181,129,74,0.2)' }}>
-              <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>Qloo</p>
+              <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.2rem' }}>Qloo (reason it exists)</p>
               <p style={{ fontSize: '0.8125rem', color: 'var(--ink-2)' }}>{strategy.qlooEstablished}</p>
             </div>
           )}
@@ -221,13 +269,26 @@ export default function StrategiesPage() {
       <PipelineNav projectId={id} current="strategy" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
-        Strategic directions
+        Experience concepts (evaluate before committing capital)
       </h1>
-      <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', maxWidth: '44rem', lineHeight: 1.65, marginBottom: '2rem' }}>
-        These are different commercial positions, not three versions of the same interior.
-        Each one implies different audiences, different space, and a different reason to exist.
-        Selecting a direction triggers the architectural design stage.
+      <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', maxWidth: '46rem', lineHeight: 1.65, marginBottom: '1rem' }}>
+        Generate and evaluate possible experience concepts using Qloo-derived cultural signals. Each concept explains why it fits the audience, what cultural relationships support it, what opportunity it captures, and why alternatives may be weaker. Selecting a concept translates it into experience requirements and spatial/architectural implications.
       </p>
+
+      {analysis.qlooContext?.culturalThesis && (
+        <div style={{
+          maxWidth: '50rem', marginBottom: '2rem', padding: '0.875rem 1rem',
+          borderLeft: '4px solid var(--qloo)', borderRadius: 'var(--radius)',
+          background: 'var(--qloo-bg)',
+        }}>
+          <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' }}>
+            Qloo cultural intelligence
+          </p>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>
+            {analysis.qlooContext.culturalThesis}
+          </p>
+        </div>
+      )}
 
       {(streaming || events.length > 0 || streamError) && (
         <div style={{ marginBottom: '1.5rem' }}>
@@ -237,6 +298,26 @@ export default function StrategiesPage() {
             error={streamError}
             onRetry={() => currentSelected && start({ strategyId: currentSelected })}
           />
+        </div>
+      )}
+
+      {analysis.qlooContext?.culturalThesis && (
+        <div style={{
+          maxWidth: '50rem', marginBottom: '1.25rem', padding: '0.875rem 1rem',
+          borderLeft: '4px solid var(--qloo)', borderRadius: 'var(--radius)',
+          background: 'var(--qloo-bg)',
+        }}>
+          <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' }}>
+            Qloo cultural intelligence (this is why this product exists)
+          </p>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>
+            {analysis.qlooContext.culturalThesis}
+          </p>
+          {analysis.qlooContext.notes?.length ? (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '0.375rem' }}>
+              {analysis.qlooContext.notes.slice(0, 2).join(' ')}
+            </p>
+          ) : null}
         </div>
       )}
 

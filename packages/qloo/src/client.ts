@@ -20,6 +20,10 @@ export interface QlooAffinity {
   strength: number;
   domain?: string;
   relation?: string;
+  genre?: string;
+  description?: string;
+  city?: string;
+  keywords?: string[];
 }
 
 export interface QlooRequestOptions {
@@ -40,6 +44,36 @@ function entityId(raw: any): string | undefined {
 function affinityScore(raw: any): number | undefined {
   const q = raw?.query?.affinity ?? raw?.affinity ?? raw?.score;
   return typeof q === 'number' && Number.isFinite(q) ? q : undefined;
+}
+
+function genreFromRow(raw: any): string | undefined {
+  const id =
+    raw?.properties?.primary_genre?.id ||
+    raw?.properties?.genre?.id ||
+    raw?.primary_genre?.id ||
+    raw?.genre?.id;
+  if (typeof id !== 'string') return undefined;
+  return id.replace(/^urn:tag:genre:place:/, '').replace(/^urn:tag:genre:/, '') || undefined;
+}
+
+function descriptionFromRow(raw: any): string | undefined {
+  const value = raw?.properties?.description ?? raw?.description;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function cityFromRow(raw: any): string | undefined {
+  const value = raw?.properties?.geocode?.city ?? raw?.geocode?.city;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function keywordsFromRow(raw: any): string[] {
+  const rows = raw?.properties?.keywords ?? raw?.keywords;
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((k: any) => (typeof k === 'string' ? k : k?.name))
+    .filter((k: any): k is string => typeof k === 'string' && Boolean(k.trim()))
+    .map((k) => k.trim())
+    .slice(0, 8);
 }
 
 function domainFromType(type?: string): string {
@@ -172,7 +206,11 @@ export class QlooClient {
             targetId: entityIdFromRow(row),
             strength,
             domain: domainFromType(types[i]),
-            relation: 'affinity'
+            relation: 'affinity',
+            genre: genreFromRow(row),
+            description: descriptionFromRow(row),
+            city: cityFromRow(row),
+            keywords: keywordsFromRow(row)
           });
         }
       }
@@ -254,7 +292,11 @@ function scoredRows(rows: any[], domain: string): QlooAffinity[] {
       targetId: entityIdFromRow(row),
       strength,
       domain,
-      relation: 'affinity'
+      relation: 'affinity',
+      genre: genreFromRow(row),
+      description: descriptionFromRow(row),
+      city: cityFromRow(row),
+      keywords: keywordsFromRow(row)
     }];
   });
 }

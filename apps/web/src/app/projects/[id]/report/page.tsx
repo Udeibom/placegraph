@@ -59,7 +59,7 @@ export default function ReportPage() {
       {/* Report header */}
       <div style={{ marginBottom: '2.5rem', paddingBottom: '1.5rem', borderBottom: '3px solid var(--accent)' }}>
         <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--accent)', marginBottom: '0.75rem' }}>
-          PlaceGraph · Cultural pre-feasibility brief
+          PlaceGraph · Qloo-powered cultural intelligence · Better decisions before millions are spent
         </p>
         <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.18, marginBottom: '0.375rem' }}>
           {project.name}
@@ -121,8 +121,14 @@ export default function ReportPage() {
                 <div style={{ padding: '0.875rem 1rem', background: 'var(--qloo-bg)', border: '1px solid rgba(181,129,74,0.25)', borderRadius: 'var(--radius-md)' }}>
                   <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.25rem' }}>Cultural proof</p>
                   <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.55 }}>
-                    {(analysis.qlooContext?.affinities ?? []).slice(0, 4).map((a: { target?: string }) => a.target).filter(Boolean).join(' · ') || 'No scored affinity evidence resolved.'}
+                    {analysis.qlooContext?.culturalThesis ||
+                      ((analysis.qlooContext?.affinities ?? []).slice(0, 4).map((a: { target?: string }) => a.target).filter(Boolean).join(' · ') || 'No scored affinity evidence resolved.')}
                   </p>
+                  {(analysis.qlooContext?.culturalPatterns?.length ?? 0) > 0 && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--muted)', lineHeight: 1.45, marginTop: '0.375rem' }}>
+                      Patterns: {analysis.qlooContext?.culturalPatterns?.map((pattern) => `${pattern.label} (${pattern.count})`).join(' · ')}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -155,19 +161,28 @@ export default function ReportPage() {
           {/* Concept renders */}
           {analysis.visualizations?.[0]?.images?.length ? (
             <Section title="Concept render">
+              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--ink)', marginBottom: '0.2rem' }}>
+                {strategy?.title || project.name}
+              </p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', lineHeight: 1.55, marginBottom: '0.875rem' }}>
+                Complete-building cutaway, full exterior and full interior from one spatial brief.
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                 {analysis.visualizations[0].images.map((img: string, i: number) => {
                   const isPlan = img.startsWith('data:image/svg');
+                  const label = isPlan
+                    ? 'Spatial concept plan'
+                    : analysis.visualizations[0].viewLabels?.[i] || `Concept render ${i + 1}`;
                   return (
                     <figure key={i} style={{ margin: 0, breakInside: 'avoid' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={img}
-                        alt={isPlan ? 'Spatial concept plan' : `Concept render ${i + 1}`}
+                        alt={label}
                         style={{ width: '100%', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--line)' }}
                       />
                       <figcaption style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.25rem' }}>
-                        {isPlan ? 'Spatial concept plan' : `Concept render ${i + 1} — expected building`}
+                        {isPlan ? `${label} — reasoning evidence` : `${label} — ${strategy?.title || project.name}`}
                       </figcaption>
                     </figure>
                   );

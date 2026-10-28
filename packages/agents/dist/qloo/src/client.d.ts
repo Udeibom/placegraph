@@ -18,6 +18,10 @@ export interface QlooAffinity {
     strength: number;
     domain?: string;
     relation?: string;
+    genre?: string;
+    description?: string;
+    city?: string;
+    keywords?: string[];
 }
 export interface QlooRequestOptions {
     limit?: number;

@@ -57,7 +57,7 @@ export default function Home() {
           color: 'var(--accent)',
           marginBottom: '1rem',
         }}>
-          Cultural pre-feasibility → architectural concept
+          Better decisions before millions are spent
         </p>
 
         <h1 style={{
@@ -69,7 +69,7 @@ export default function Home() {
           letterSpacing: '-0.02em',
           marginBottom: '1.25rem',
         }}>
-          Know who a place is for before you draw it.
+          Decide what kind of place should be built, for whom, and why.
         </h1>
 
         <p style={{
@@ -79,13 +79,10 @@ export default function Home() {
           maxWidth: '44rem',
           marginBottom: '0.875rem',
         }}>
-          PlaceGraph is cultural pre-feasibility for developers, operators and architects: what commercial
-          experience should exist in a location, for whom, and why — before design fees are committed.
+          PlaceGraph is a Qloo-powered cultural intelligence agent for developers, hospitality groups, retail brands, and operators deciding what type of experience should be created for a specific audience in a specific context before committing significant capital.
         </p>
         <p style={{ fontSize: '0.9375rem', lineHeight: 1.65, color: 'var(--muted)', maxWidth: '44rem' }}>
-          Qloo provides cross-domain cultural affinity evidence. PlaceGraph determines which relationships
-          represent a meaningful opportunity. Architectural intelligence translates the selected strategy
-          into space. Professionals remain responsible for evaluation.
+          Qloo cultural intelligence reveals differentiated opportunities. PlaceGraph evaluates possible experience concepts against those signals, explains why alternatives may be weaker, and translates the selected concept into spatial and architectural implications — preventing investment in physical experiences that won’t resonate.
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '2rem' }}>
@@ -115,15 +112,16 @@ export default function Home() {
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
           {[
-            'Place + objective',
-            'Cultural intelligence',
-            'Opportunity discovery',
-            'Commercial strategy',
+            'Location + audience + objective',
+            'Qloo cultural intelligence',
+            'Cultural opportunities',
+            'Possible experience concepts',
+            'Evidence-based concept recommendation',
+            'Experience strategy',
             'Experience requirements',
-            'Architectural decisions',
-            'Spatial concept',
+            'Spatial/architectural implications',
             'Concept render',
-            'Professional review',
+            'Review',
           ].map((label, i, arr) => (
             <span key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{

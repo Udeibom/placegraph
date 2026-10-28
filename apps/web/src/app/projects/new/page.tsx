@@ -42,16 +42,19 @@ export default function NewProject() {
   const [step, setStep]     = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState<string | null>(null);
-  const [form, setForm]     = useState({
-    name:        '',
-    location:    { address: '', city: '', neighborhood: '' },
-    projectType: 'restaurant',
-    objective:   '',
-    budgetRange: '',
-    floorArea:   '',
-    floorPlanUrl: '',
-    audiences:   [{ ...emptyAudience }],
-    constraints: [{ ...emptyConstraint }],
+  const [form, setForm] = useState({
+    name:            '',
+    location:        { address: '', city: '', neighborhood: '' },
+    projectType:     'restaurant',
+    businessType:    '',
+    objective:       '',
+    investmentIntent:'',
+    targetAudience:  '',
+    budgetRange:     '',
+    floorArea:       '',
+    floorPlanUrl:    '',
+    audiences:       [{ ...emptyAudience }],
+    constraints:     [{ ...emptyConstraint }],
   });
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -86,10 +89,10 @@ export default function NewProject() {
     }
   }
 
-  const steps = ['Place', 'Audiences', 'Objective', 'Constraints'];
+  const steps = ['Place & business', 'Target audience', 'Objective & intent', 'Constraints'];
   const canAdvance = [
-    form.name.trim() && form.location.city.trim(),
-    form.audiences.some((a) => a.name.trim()),
+    form.name.trim() && form.location.city.trim() && (form.businessType.trim() || form.projectType),
+    form.targetAudience.trim() || form.audiences.some((a) => a.name.trim()),
     form.objective.trim(),
     true,
   ];
@@ -97,10 +100,10 @@ export default function NewProject() {
   return (
     <div style={{ maxWidth: '42rem' }}>
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, marginBottom: '0.375rem', color: 'var(--ink)' }}>
-        New project
+        New project — capital decision brief
       </h1>
       <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', marginBottom: '2rem' }}>
-        Start from the development context. The agent investigates before it designs.
+        Define location, business type, target audience, objective, and investment intent. PlaceGraph uses Qloo to evaluate what kind of place should be built before committing capital.
       </p>
 
       {/* Step indicator */}
@@ -139,7 +142,7 @@ export default function NewProject() {
       {/* Step content */}
       <div style={{ minHeight: '22rem' }}>
 
-        {/* Step 0 — Place */}
+        {/* Step 0 — Place & business */}
         {step === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'pg-slide-up var(--duration-slow) var(--ease-out) both' }}>
             <Field label="Project name" hint="A working name for this brief">
@@ -147,8 +150,13 @@ export default function NewProject() {
                 onChange={(e) => update('name', e.target.value)} />
             </Field>
 
+            <Field label="Business type *" hint="What type of business/experience are you considering (or want to discover)">
+              <input className="pg-input" value={form.businessType} placeholder="e.g. neighborhood wine bar, all-day cafe, community gym"
+                onChange={(e) => update('businessType', e.target.value)} />
+            </Field>
+
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--ink-2)' }}>Project type</label>
+              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--ink-2)' }}>Project category (optional)</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem' }}>
                 {PROJECT_TYPES.map((t) => (
                   <button
@@ -192,13 +200,18 @@ export default function NewProject() {
           </div>
         )}
 
-        {/* Step 1 — Audiences */}
+        {/* Step 1 — Target audience */}
         {step === 1 && (
-          <div style={{ animation: 'pg-slide-up var(--duration-slow) var(--ease-out) both' }}>
-            <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1.25rem' }}>
-              Do not average audiences into a single persona. Name each group that must be served or attracted,
-              including secondary groups the project depends on economically.
-            </p>
+          <div style={{ animation: 'pg-slide-up var(--duration-slow) var(--ease-out) both', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <Field label="Primary target audience *" hint="Who are you trying to resonate with in this location (be specific)">
+              <input className="pg-input" value={form.targetAudience} placeholder="e.g. design-conscious 25-34 year olds in creative industries"
+                onChange={(e) => update('targetAudience', e.target.value)} />
+            </Field>
+
+            <div>
+              <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1rem' }}>
+                Optionally add detailed audience groups (primary/secondary/tertiary). Qloo will evaluate cultural fit against these groups.
+              </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {form.audiences.map((a, i) => (
                 <div key={i} style={{
@@ -258,22 +271,36 @@ export default function NewProject() {
               style={{ marginTop: '0.875rem', fontSize: '0.875rem', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
               + Add audience
             </button>
+            </div>
           </div>
         )}
 
-        {/* Step 2 — Objective */}
+        {/* Step 2 — Objective & intent */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'pg-slide-up var(--duration-slow) var(--ease-out) both' }}>
             <Field
-              label="Commercial objective *"
-              hint="Describe what this place must achieve commercially and culturally."
+              label="Project objective *"
+              hint="What capital decision are you trying to make? What type of place should be built, for whom, and why?"
             >
               <textarea
                 className="pg-input"
                 style={{ minHeight: '8rem' }}
                 value={form.objective}
                 onChange={(e) => update('objective', e.target.value)}
-                placeholder="e.g. Create a destination restaurant that attracts a design-aware audience from across London while remaining appropriate to Clerkenwell's existing food culture…"
+                placeholder="e.g. Decide whether to convert this warehouse unit into a neighborhood venue that justifies a 10-year lease. Need confidence the concept will resonate culturally before committing capital."
+              />
+            </Field>
+
+            <Field
+              label="Investment intent"
+              hint="Scale of commitment / what you're trying to validate before spending significant capital"
+            >
+              <textarea
+                className="pg-input"
+                style={{ minHeight: '6rem' }}
+                value={form.investmentIntent}
+                onChange={(e) => update('investmentIntent', e.target.value)}
+                placeholder="e.g. Considering a 10-year lease with ~£250k fit-out. Need to validate cultural fit before signing."
               />
             </Field>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>

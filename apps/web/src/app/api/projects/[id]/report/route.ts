@@ -29,6 +29,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
             insufficient:    analysis.qlooContext?.insufficient,
             entityCount:     analysis.qlooContext?.entities?.length ?? 0,
             affinityCount:   analysis.qlooContext?.affinities?.length ?? 0,
+            culturalThesis:  analysis.qlooContext?.culturalThesis,
+            culturalPatterns: analysis.qlooContext?.culturalPatterns,
+            affinities:      analysis.qlooContext?.affinities?.slice(0, 20),
             notes:           analysis.qlooContext?.notes,
           },
           locationSummary: {

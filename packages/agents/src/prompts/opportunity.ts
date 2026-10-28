@@ -14,6 +14,7 @@ Location context (POIs, existing landscape):
 
 Qloo cultural context (affinities, entities, domains):
 {qlooContext}
+Hard operational constraints: {hardConstraints}
 
 Task: Identify 3 genuinely different opportunity hypotheses — one each of types "alignment", "whitespace", and "destination".
 
@@ -30,6 +31,11 @@ For each opportunity provide:
 - qlooEstablished: MUST name specific Qloo entities or affinity relationships from the evidence — not generic descriptions. If Qloo evidence is insufficient, say so explicitly.
 - locallyEstablished: what nearby businesses / geography showed (from OSM/geocoding, not Qloo)
 - inferred: what you inferred (not observed, not in Qloo)
+
+Cultural pattern interpretation:
+- The Qloo context includes culturalPatterns and culturalThesis, derived by grouping scored place affinities by genre. Use the pattern mix as the cultural signal; do not treat the list of place names as a checklist.
+- At least one opportunity must synthesize two or more patterns into a hybrid position. If the mix is cross-programmatic, a single-use opportunity is a weak hypothesis.
+- Name the specific patterns each opportunity uses and the spatial consequence of combining them.
 
 Rules:
 - Qloo entity search matches are NOT affinity evidence. Do not put a search-only match in qlooEstablished.

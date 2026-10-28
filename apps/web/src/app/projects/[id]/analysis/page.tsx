@@ -6,7 +6,7 @@ import { PipelineNav } from '@/components/PipelineNav';
 import { EvidenceQuality } from '@/components/EvidenceQuality';
 import { ReasoningChain } from '@/components/ReasoningChain';
 import { useProject } from '@/components/ProjectView';
-import type { CulturalLandscape, Opportunity } from '@placegraph/types';
+import type { CulturalLandscape, CulturalPattern, Opportunity } from '@placegraph/types';
 
 const OPP_TYPE_CLASS: Record<string, string> = {
   alignment:   'pg-badge pg-badge-external',
@@ -198,6 +198,47 @@ function OpportunityCard({ op }: { op: Opportunity }) {
   );
 }
 
+function CulturalPatternSummary({ patterns, thesis }: { patterns: CulturalPattern[]; thesis?: string }) {
+  if (!patterns.length) return null;
+  return (
+    <section style={{ marginBottom: '2.5rem' }}>
+      <div style={{
+        border: '1.5px solid var(--line-2)',
+        borderLeft: '4px solid var(--qloo)',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--qloo-bg)',
+        padding: '1.125rem 1.25rem',
+      }}>
+        <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.375rem' }}>
+          Qloo cultural pattern
+        </p>
+        {thesis && (
+          <p style={{ fontSize: '1rem', color: 'var(--ink)', lineHeight: 1.7, marginBottom: '1rem', fontFamily: '"Libre Baskerville", Georgia, serif' }}>
+            {thesis}
+          </p>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))', gap: '0.625rem' }}>
+          {patterns.map((pattern) => (
+            <div key={pattern.key} style={{ padding: '0.75rem 0.875rem', background: 'var(--surface-raised)', border: '1px solid rgba(181,129,74,0.22)', borderRadius: 'var(--radius)' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <strong style={{ fontSize: '0.8125rem', color: 'var(--ink)' }}>{pattern.label}</strong>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--qloo)' }}>{pattern.count}</span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--ink-2)', lineHeight: 1.45, marginBottom: '0.375rem' }}>
+                {pattern.places.slice(0, 4).join(' · ')}
+              </p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--muted)', lineHeight: 1.45 }}>{pattern.implication}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: '0.6875rem', color: 'var(--muted-2)', marginTop: '0.75rem', lineHeight: 1.4 }}>
+          Patterns are inferred by grouping scored place genres. They are not additional Qloo scores, and affinity is not demand.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function EvidenceCol({ label, items, color, bg }: { label: string; items?: string[]; color: string; bg: string }) {
   return (
     <div style={{ padding: '0.625rem', background: bg, borderRadius: 'var(--radius)', border: `1px solid ${color}22` }}>
@@ -262,6 +303,11 @@ export default function AnalysisPage() {
         gate={analysis.evidenceGate}
         intelligenceMode={analysis.intelligenceMode}
         qlooSource={analysis.qlooContext?.source}
+      />
+
+      <CulturalPatternSummary
+        patterns={analysis.qlooContext?.culturalPatterns ?? []}
+        thesis={analysis.qlooContext?.culturalThesis}
       />
 
       {/* Three landscapes */}

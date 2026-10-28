@@ -1,42 +1,23 @@
-export const VISUALIZATION_PROMPT = `You are producing precise architectural photography prompts for AI image generation.
-
-Project: {project}
-
-Selected strategy: {strategy}
-
-Architectural decisions:
-{decisions}
-
-Spatial concept organization: {concept}
-
-Experience requirements: {requirements}
-
-Generate THREE distinct visualization prompts that derive directly from the architectural decisions above — NOT from generic descriptions of the space type.
-
-Each prompt must:
-- Reference specific materials, spatial qualities, or features named in the decisions
-- Use correct architectural photography language (camera angle, lens quality, lighting quality, time of day)
-- Identify a specific spatial zone and mood
-- Include a negative prompt to suppress common AI artifacts
-
-Return JSON only, no surrounding text:
-{
-  "views": [
+export const VISUALIZATION_VIEWS = [
     {
-      "label": "Exterior arrival",
-      "prompt": "Architectural photography of [specific facade description derived from decisions], [specific materials], [lighting quality — e.g. overcast northern light], [time of day], [lens — e.g. 35mm], high detail, photorealistic",
-      "negativePrompt": "blurry, generic, stock photo, neon, plastic, oversaturated, cartoon, people blocking facade, logo signs"
+        key: 'cutaway',
+        label: 'Complete building cutaway',
+        composition: 'One photorealistic architectural cutaway of the complete building, a high three-quarter dollhouse view. ' +
+            'The entire building sits uncropped in one frame. Remove the roof and front wall so every interior zone is visible at once, while the facade, entrance, landscaping and site context remain visible. ' +
+            'Coherent structure, realistic materials, all zones legible together, not a diagram.'
     },
     {
-      "label": "Primary interior",
-      "prompt": "Interior architectural photography, [specific primary zone from concept], [specific materials from decisions], [lighting quality], [spatial character], empty space, no people, photorealistic, 24mm wide angle",
-      "negativePrompt": "cluttered, plastic, generic restaurant, chain, oversaturated, cartoon, illustration, crowds"
+        key: 'exterior',
+        label: 'Exterior — complete building',
+        composition: 'One photorealistic architectural photograph of the complete building from across the street. ' +
+            'The whole building fits inside the frame with generous context: full massing, roof, entrance, facade materials, landscaping, street edge and neighbouring buildings. ' +
+            'Wide establishing shot, no crop.'
     },
     {
-      "label": "Material detail",
-      "prompt": "Architectural detail photograph, [specific material junction or surface from decisions], natural lighting, macro detail, 85mm, shallow depth of field, photorealistic",
-      "negativePrompt": "blurry background only, stock photo, generic, oversaturated, cartoon"
+        key: 'interior',
+        label: 'Interior — main hall',
+        composition: 'One photorealistic wide-angle interior architectural photograph of the main hall. ' +
+            'Show all primary zones together in one coherent space, with clear circulation between them. 24mm lens at eye level, realistic daylight and artificial lighting, no people, no crop.'
     }
-  ]
-}
-`;
+];
+export const VISUALIZATION_NEGATIVE_PROMPT = 'cropped building, collage, split screen, multiple buildings, facade-only, floor plan, diagram, labels, text, lettering, signage, logos, watermark, blurry, stock photo, oversaturated, cartoon, people, crowds';

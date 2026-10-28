@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { VisualizationService } from '@placegraph/agents';
-import { createLLMProvider } from '@placegraph/agents';
 
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const vis = new VisualizationService(createLLMProvider());
+    const vis = new VisualizationService();
     const result = await vis.generateVisualization({
       project: body.project,
       strategy: body.strategy,

@@ -174,15 +174,14 @@ export default function ConceptPage() {
       <PipelineNav projectId={id} current="concept" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.25rem' }}>
-        Experience + architecture
+        Experience strategy → spatial & architectural implications
       </h1>
       <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-        Selected strategy:{' '}
+        Selected experience concept:{' '}
         <strong style={{ color: 'var(--ink-2)' }}>{strategy.title}</strong>
       </p>
-      <p style={{ fontSize: '0.875rem', color: 'var(--muted)', maxWidth: '44rem', lineHeight: 1.65, marginBottom: '2rem' }}>
-        Architecture is the visible consequence of the cultural and commercial choice. Every decision below
-        traces back through the reasoning chain to Qloo evidence, local observation, or agent inference.
+      <p style={{ fontSize: '0.875rem', color: 'var(--muted)', maxWidth: '46rem', lineHeight: 1.65, marginBottom: '2rem' }}>
+        Architecture is a downstream translation of the culturally-validated concept. Every decision below traces to Qloo cultural intelligence, local observation, or agent inference — with provenance exposed.
       </p>
 
       {/* Experience requirements */}
@@ -303,28 +302,41 @@ export default function ConceptPage() {
             )}
 
             {viz.images?.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                {viz.images.map((img, i) => {
-                  const isPlan = img.startsWith('data:image/svg');
-                  return (
-                    <figure key={i} style={{ margin: 0, maxWidth: '900px' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img}
-                        alt={isPlan ? 'Spatial concept plan' : `Concept render ${i + 1}`}
-                        style={{
-                          width: '100%',
-                          borderRadius: 'var(--radius-md)',
-                          border: '1.5px solid var(--line)',
-                          boxShadow: isPlan ? 'var(--shadow-sm)' : 'var(--shadow-lg)',
-                        }}
-                      />
-                      <figcaption style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.375rem' }}>
-                        {isPlan ? 'Spatial concept plan — reasoning evidence' : `Concept render ${i + 1} — expected building`}
-                      </figcaption>
-                    </figure>
-                  );
-                })}
+              <div>
+                <div style={{ marginBottom: '0.875rem' }}>
+                  <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--ink)', marginBottom: '0.2rem' }}>
+                    Concept: {strategy?.title || project.name}
+                  </p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', lineHeight: 1.55 }}>
+                    One complete-building cutaway, one full exterior and one full interior — derived from the same spatial brief.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {viz.images.map((img, i) => {
+                    const isPlan = img.startsWith('data:image/svg');
+                    const label = isPlan
+                      ? 'Spatial concept plan'
+                      : viz.viewLabels?.[i] || `Concept render ${i + 1}`;
+                    return (
+                      <figure key={i} style={{ margin: 0, maxWidth: '900px' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img}
+                          alt={label}
+                          style={{
+                            width: '100%',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1.5px solid var(--line)',
+                            boxShadow: isPlan ? 'var(--shadow-sm)' : 'var(--shadow-lg)',
+                          }}
+                        />
+                        <figcaption style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.375rem' }}>
+                          {isPlan ? `${label} — reasoning evidence` : `${label} — ${strategy?.title || project.name}`}
+                        </figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

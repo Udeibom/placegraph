@@ -8,6 +8,33 @@ function affinityScore(raw) {
     const q = raw?.query?.affinity ?? raw?.affinity ?? raw?.score;
     return typeof q === 'number' && Number.isFinite(q) ? q : undefined;
 }
+function genreFromRow(raw) {
+    const id = raw?.properties?.primary_genre?.id ||
+        raw?.properties?.genre?.id ||
+        raw?.primary_genre?.id ||
+        raw?.genre?.id;
+    if (typeof id !== 'string')
+        return undefined;
+    return id.replace(/^urn:tag:genre:place:/, '').replace(/^urn:tag:genre:/, '') || undefined;
+}
+function descriptionFromRow(raw) {
+    const value = raw?.properties?.description ?? raw?.description;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+function cityFromRow(raw) {
+    const value = raw?.properties?.geocode?.city ?? raw?.geocode?.city;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+function keywordsFromRow(raw) {
+    const rows = raw?.properties?.keywords ?? raw?.keywords;
+    if (!Array.isArray(rows))
+        return [];
+    return rows
+        .map((k) => (typeof k === 'string' ? k : k?.name))
+        .filter((k) => typeof k === 'string' && Boolean(k.trim()))
+        .map((k) => k.trim())
+        .slice(0, 8);
+}
 function domainFromType(type) {
     if (!type)
         return 'general';
@@ -136,7 +163,11 @@ export class QlooClient {
                         targetId: entityIdFromRow(row),
                         strength,
                         domain: domainFromType(types[i]),
-                        relation: 'affinity'
+                        relation: 'affinity',
+                        genre: genreFromRow(row),
+                        description: descriptionFromRow(row),
+                        city: cityFromRow(row),
+                        keywords: keywordsFromRow(row)
                     });
                 }
             }
@@ -209,7 +240,11 @@ function scoredRows(rows, domain) {
                 targetId: entityIdFromRow(row),
                 strength,
                 domain,
-                relation: 'affinity'
+                relation: 'affinity',
+                genre: genreFromRow(row),
+                description: descriptionFromRow(row),
+                city: cityFromRow(row),
+                keywords: keywordsFromRow(row)
             }];
     });
 }

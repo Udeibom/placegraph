@@ -142,6 +142,14 @@ export declare const StrategySchema: z.ZodObject<{
         confidence?: number | undefined;
         metadata?: Record<string, any> | undefined;
     }>>;
+    conceptType: z.ZodOptional<z.ZodString>;
+    fitForAudience: z.ZodOptional<z.ZodString>;
+    culturalRelationships: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString, "many">>>;
+    opportunityCaptured: z.ZodOptional<z.ZodString>;
+    whyWeakerThanAlternatives: z.ZodOptional<z.ZodString>;
+    qlooEvidenceSummary: z.ZodOptional<z.ZodString>;
+    evaluationScore: z.ZodOptional<z.ZodNumber>;
+    qlooChangedDecision: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     id: string;
     analysisRunId: string;
@@ -157,6 +165,7 @@ export declare const StrategySchema: z.ZodObject<{
     experienceThesis: string;
     risks: string[];
     differentiation: string;
+    culturalRelationships: string[];
     qlooEstablished?: string | undefined;
     locallyEstablished?: string | undefined;
     inferred?: string | undefined;
@@ -171,6 +180,13 @@ export declare const StrategySchema: z.ZodObject<{
         metadata?: Record<string, any> | undefined;
     } | undefined;
     physicalExperience?: string | undefined;
+    conceptType?: string | undefined;
+    fitForAudience?: string | undefined;
+    opportunityCaptured?: string | undefined;
+    whyWeakerThanAlternatives?: string | undefined;
+    qlooEvidenceSummary?: string | undefined;
+    evaluationScore?: number | undefined;
+    qlooChangedDecision?: string | undefined;
 }, {
     id: string;
     analysisRunId: string;
@@ -200,6 +216,14 @@ export declare const StrategySchema: z.ZodObject<{
     selected?: boolean | undefined;
     risks?: string[] | undefined;
     physicalExperience?: string | undefined;
+    conceptType?: string | undefined;
+    fitForAudience?: string | undefined;
+    culturalRelationships?: string[] | undefined;
+    opportunityCaptured?: string | undefined;
+    whyWeakerThanAlternatives?: string | undefined;
+    qlooEvidenceSummary?: string | undefined;
+    evaluationScore?: number | undefined;
+    qlooChangedDecision?: string | undefined;
 }>;
 export declare const ExperienceRequirementSchema: z.ZodObject<{
     id: z.ZodString;
@@ -531,6 +555,7 @@ export declare const VisualizationSchema: z.ZodObject<{
     id: z.ZodString;
     prompt: z.ZodString;
     images: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    viewLabels: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     model: z.ZodString;
     createdAt: z.ZodString;
 }, "strip", z.ZodTypeAny, {
@@ -538,6 +563,7 @@ export declare const VisualizationSchema: z.ZodObject<{
     createdAt: string;
     prompt: string;
     images: string[];
+    viewLabels: string[];
     model: string;
 }, {
     id: string;
@@ -545,6 +571,7 @@ export declare const VisualizationSchema: z.ZodObject<{
     prompt: string;
     model: string;
     images?: string[] | undefined;
+    viewLabels?: string[] | undefined;
 }>;
 export declare const ReviewSnapshotSchema: z.ZodObject<{
     strategyTitle: z.ZodOptional<z.ZodString>;
@@ -794,12 +821,57 @@ export declare const LocationContextSchema: z.ZodObject<{
         distanceM?: number | undefined;
     }[] | undefined;
 }>;
+export declare const CulturalPatternSchema: z.ZodObject<{
+    key: z.ZodString;
+    label: z.ZodString;
+    count: z.ZodNumber;
+    places: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    genres: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    implication: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    key: string;
+    label: string;
+    count: number;
+    places: string[];
+    genres: string[];
+    implication: string;
+}, {
+    key: string;
+    label: string;
+    count: number;
+    implication: string;
+    places?: string[] | undefined;
+    genres?: string[] | undefined;
+}>;
 export declare const QlooContextSchema: z.ZodObject<{
     source: z.ZodDefault<z.ZodEnum<["live", "mock", "mixed"]>>;
     entities: z.ZodDefault<z.ZodArray<z.ZodAny, "many">>;
     affinities: z.ZodDefault<z.ZodArray<z.ZodAny, "many">>;
     audienceAffinities: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodAny, "many">>>;
     crossDomain: z.ZodOptional<z.ZodAny>;
+    culturalPatterns: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        key: z.ZodString;
+        label: z.ZodString;
+        count: z.ZodNumber;
+        places: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        genres: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        implication: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        key: string;
+        label: string;
+        count: number;
+        places: string[];
+        genres: string[];
+        implication: string;
+    }, {
+        key: string;
+        label: string;
+        count: number;
+        implication: string;
+        places?: string[] | undefined;
+        genres?: string[] | undefined;
+    }>, "many">>;
+    culturalThesis: z.ZodDefault<z.ZodString>;
     notes: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     insufficient: z.ZodDefault<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
@@ -808,6 +880,15 @@ export declare const QlooContextSchema: z.ZodObject<{
     insufficient: boolean;
     entities: any[];
     affinities: any[];
+    culturalPatterns: {
+        key: string;
+        label: string;
+        count: number;
+        places: string[];
+        genres: string[];
+        implication: string;
+    }[];
+    culturalThesis: string;
     audienceAffinities?: Record<string, any[]> | undefined;
     crossDomain?: any;
 }, {
@@ -818,6 +899,15 @@ export declare const QlooContextSchema: z.ZodObject<{
     affinities?: any[] | undefined;
     audienceAffinities?: Record<string, any[]> | undefined;
     crossDomain?: any;
+    culturalPatterns?: {
+        key: string;
+        label: string;
+        count: number;
+        implication: string;
+        places?: string[] | undefined;
+        genres?: string[] | undefined;
+    }[] | undefined;
+    culturalThesis?: string | undefined;
 }>;
 export declare const CounterfactualSchema: z.ZodObject<{
     summary: z.ZodString;
@@ -906,6 +996,29 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         affinities: z.ZodDefault<z.ZodArray<z.ZodAny, "many">>;
         audienceAffinities: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodAny, "many">>>;
         crossDomain: z.ZodOptional<z.ZodAny>;
+        culturalPatterns: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            key: z.ZodString;
+            label: z.ZodString;
+            count: z.ZodNumber;
+            places: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            genres: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            implication: z.ZodString;
+        }, "strip", z.ZodTypeAny, {
+            key: string;
+            label: string;
+            count: number;
+            places: string[];
+            genres: string[];
+            implication: string;
+        }, {
+            key: string;
+            label: string;
+            count: number;
+            implication: string;
+            places?: string[] | undefined;
+            genres?: string[] | undefined;
+        }>, "many">>;
+        culturalThesis: z.ZodDefault<z.ZodString>;
         notes: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
         insufficient: z.ZodDefault<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
@@ -914,6 +1027,15 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         insufficient: boolean;
         entities: any[];
         affinities: any[];
+        culturalPatterns: {
+            key: string;
+            label: string;
+            count: number;
+            places: string[];
+            genres: string[];
+            implication: string;
+        }[];
+        culturalThesis: string;
         audienceAffinities?: Record<string, any[]> | undefined;
         crossDomain?: any;
     }, {
@@ -924,6 +1046,15 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         affinities?: any[] | undefined;
         audienceAffinities?: Record<string, any[]> | undefined;
         crossDomain?: any;
+        culturalPatterns?: {
+            key: string;
+            label: string;
+            count: number;
+            implication: string;
+            places?: string[] | undefined;
+            genres?: string[] | undefined;
+        }[] | undefined;
+        culturalThesis?: string | undefined;
     }>>;
     landscapes: z.ZodOptional<z.ZodObject<{
         existing: z.ZodObject<{
@@ -1341,6 +1472,14 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
             confidence?: number | undefined;
             metadata?: Record<string, any> | undefined;
         }>>;
+        conceptType: z.ZodOptional<z.ZodString>;
+        fitForAudience: z.ZodOptional<z.ZodString>;
+        culturalRelationships: z.ZodDefault<z.ZodOptional<z.ZodArray<z.ZodString, "many">>>;
+        opportunityCaptured: z.ZodOptional<z.ZodString>;
+        whyWeakerThanAlternatives: z.ZodOptional<z.ZodString>;
+        qlooEvidenceSummary: z.ZodOptional<z.ZodString>;
+        evaluationScore: z.ZodOptional<z.ZodNumber>;
+        qlooChangedDecision: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         id: string;
         analysisRunId: string;
@@ -1356,6 +1495,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         experienceThesis: string;
         risks: string[];
         differentiation: string;
+        culturalRelationships: string[];
         qlooEstablished?: string | undefined;
         locallyEstablished?: string | undefined;
         inferred?: string | undefined;
@@ -1370,6 +1510,13 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
             metadata?: Record<string, any> | undefined;
         } | undefined;
         physicalExperience?: string | undefined;
+        conceptType?: string | undefined;
+        fitForAudience?: string | undefined;
+        opportunityCaptured?: string | undefined;
+        whyWeakerThanAlternatives?: string | undefined;
+        qlooEvidenceSummary?: string | undefined;
+        evaluationScore?: number | undefined;
+        qlooChangedDecision?: string | undefined;
     }, {
         id: string;
         analysisRunId: string;
@@ -1399,6 +1546,14 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         selected?: boolean | undefined;
         risks?: string[] | undefined;
         physicalExperience?: string | undefined;
+        conceptType?: string | undefined;
+        fitForAudience?: string | undefined;
+        culturalRelationships?: string[] | undefined;
+        opportunityCaptured?: string | undefined;
+        whyWeakerThanAlternatives?: string | undefined;
+        qlooEvidenceSummary?: string | undefined;
+        evaluationScore?: number | undefined;
+        qlooChangedDecision?: string | undefined;
     }>, "many">>;
     selectedStrategyId: z.ZodOptional<z.ZodString>;
     requirements: z.ZodDefault<z.ZodArray<z.ZodObject<{
@@ -1603,6 +1758,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         id: z.ZodString;
         prompt: z.ZodString;
         images: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        viewLabels: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
         model: z.ZodString;
         createdAt: z.ZodString;
     }, "strip", z.ZodTypeAny, {
@@ -1610,6 +1766,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         createdAt: string;
         prompt: string;
         images: string[];
+        viewLabels: string[];
         model: string;
     }, {
         id: string;
@@ -1617,6 +1774,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         prompt: string;
         model: string;
         images?: string[] | undefined;
+        viewLabels?: string[] | undefined;
     }>, "many">>;
     provenance: z.ZodDefault<z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -1869,6 +2027,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         experienceThesis: string;
         risks: string[];
         differentiation: string;
+        culturalRelationships: string[];
         qlooEstablished?: string | undefined;
         locallyEstablished?: string | undefined;
         inferred?: string | undefined;
@@ -1883,6 +2042,13 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
             metadata?: Record<string, any> | undefined;
         } | undefined;
         physicalExperience?: string | undefined;
+        conceptType?: string | undefined;
+        fitForAudience?: string | undefined;
+        opportunityCaptured?: string | undefined;
+        whyWeakerThanAlternatives?: string | undefined;
+        qlooEvidenceSummary?: string | undefined;
+        evaluationScore?: number | undefined;
+        qlooChangedDecision?: string | undefined;
     }[];
     requirements: {
         id: string;
@@ -1920,6 +2086,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         createdAt: string;
         prompt: string;
         images: string[];
+        viewLabels: string[];
         model: string;
     }[];
     reviews: {
@@ -1964,6 +2131,15 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         insufficient: boolean;
         entities: any[];
         affinities: any[];
+        culturalPatterns: {
+            key: string;
+            label: string;
+            count: number;
+            places: string[];
+            genres: string[];
+            implication: string;
+        }[];
+        culturalThesis: string;
         audienceAffinities?: Record<string, any[]> | undefined;
         crossDomain?: any;
     } | undefined;
@@ -2116,6 +2292,15 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         affinities?: any[] | undefined;
         audienceAffinities?: Record<string, any[]> | undefined;
         crossDomain?: any;
+        culturalPatterns?: {
+            key: string;
+            label: string;
+            count: number;
+            implication: string;
+            places?: string[] | undefined;
+            genres?: string[] | undefined;
+        }[] | undefined;
+        culturalThesis?: string | undefined;
     } | undefined;
     landscapes?: {
         existing: {
@@ -2225,6 +2410,14 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         selected?: boolean | undefined;
         risks?: string[] | undefined;
         physicalExperience?: string | undefined;
+        conceptType?: string | undefined;
+        fitForAudience?: string | undefined;
+        culturalRelationships?: string[] | undefined;
+        opportunityCaptured?: string | undefined;
+        whyWeakerThanAlternatives?: string | undefined;
+        qlooEvidenceSummary?: string | undefined;
+        evaluationScore?: number | undefined;
+        qlooChangedDecision?: string | undefined;
     }[] | undefined;
     selectedStrategyId?: string | undefined;
     requirements?: {
@@ -2287,6 +2480,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         prompt: string;
         model: string;
         images?: string[] | undefined;
+        viewLabels?: string[] | undefined;
     }[] | undefined;
     reviews?: {
         id: string;
@@ -2342,22 +2536,22 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
 }>;
 export declare const PIPELINE_STAGES: readonly [{
     readonly id: "place";
-    readonly label: "Place & objective";
+    readonly label: "Location + audience + objective";
 }, {
     readonly id: "culture";
-    readonly label: "Cultural intelligence";
+    readonly label: "Qloo cultural intelligence";
 }, {
     readonly id: "opportunity";
-    readonly label: "Opportunity discovery";
+    readonly label: "Cultural opportunities";
 }, {
     readonly id: "strategy";
-    readonly label: "Commercial strategy";
+    readonly label: "Experience concepts";
 }, {
     readonly id: "experience";
     readonly label: "Experience requirements";
 }, {
     readonly id: "architecture";
-    readonly label: "Architectural decisions";
+    readonly label: "Spatial/architectural implications";
 }, {
     readonly id: "concept";
     readonly label: "Spatial concept";
@@ -2366,7 +2560,7 @@ export declare const PIPELINE_STAGES: readonly [{
     readonly label: "Concept render";
 }, {
     readonly id: "review";
-    readonly label: "Professional review";
+    readonly label: "Review";
 }];
 export type Opportunity = z.infer<typeof OpportunitySchema>;
 export type Strategy = z.infer<typeof StrategySchema>;
@@ -2384,6 +2578,7 @@ export type Visualization = z.infer<typeof VisualizationSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
 export type PlacePoi = z.infer<typeof PlacePoiSchema>;
 export type LocationContext = z.infer<typeof LocationContextSchema>;
+export type CulturalPattern = z.infer<typeof CulturalPatternSchema>;
 export type QlooContext = z.infer<typeof QlooContextSchema>;
 export type Counterfactual = z.infer<typeof CounterfactualSchema>;
 export type AnalysisSnapshot = z.infer<typeof AnalysisSnapshotSchema>;

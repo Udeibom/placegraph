@@ -46,7 +46,15 @@ export const StrategySchema = z.object({
   qlooEstablished: z.string().optional(),
   locallyEstablished: z.string().optional(),
   inferred: z.string().optional(),
-  provenance: ProvenanceNodeSchema.optional()
+  provenance: ProvenanceNodeSchema.optional(),
+  conceptType: z.string().optional(),
+  fitForAudience: z.string().optional(),
+  culturalRelationships: z.array(z.string()).optional().default([]),
+  opportunityCaptured: z.string().optional(),
+  whyWeakerThanAlternatives: z.string().optional(),
+  qlooEvidenceSummary: z.string().optional(),
+  evaluationScore: z.number().optional(),
+  qlooChangedDecision: z.string().optional()
 });
 
 export const ExperienceRequirementSchema = z.object({
@@ -130,6 +138,7 @@ export const VisualizationSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   images: z.array(z.string()).default([]),
+  viewLabels: z.array(z.string()).default([]),
   model: z.string(),
   createdAt: z.string()
 });
@@ -207,12 +216,23 @@ export const LocationContextSchema = z.object({
   notes: z.array(z.string()).default([])
 });
 
+export const CulturalPatternSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  count: z.number(),
+  places: z.array(z.string()).default([]),
+  genres: z.array(z.string()).default([]),
+  implication: z.string()
+});
+
 export const QlooContextSchema = z.object({
   source: z.enum(['live', 'mock', 'mixed']).default('mock'),
   entities: z.array(z.any()).default([]),
   affinities: z.array(z.any()).default([]),
   audienceAffinities: z.record(z.string(), z.array(z.any())).optional(),
   crossDomain: z.any().optional(),
+  culturalPatterns: z.array(CulturalPatternSchema).default([]),
+  culturalThesis: z.string().default(''),
   notes: z.array(z.string()).default([]),
   insufficient: z.boolean().default(false)
 });
@@ -266,15 +286,15 @@ export const AnalysisSnapshotSchema = z.object({
 });
 
 export const PIPELINE_STAGES = [
-  { id: 'place', label: 'Place & objective' },
-  { id: 'culture', label: 'Cultural intelligence' },
-  { id: 'opportunity', label: 'Opportunity discovery' },
-  { id: 'strategy', label: 'Commercial strategy' },
+  { id: 'place', label: 'Location + audience + objective' },
+  { id: 'culture', label: 'Qloo cultural intelligence' },
+  { id: 'opportunity', label: 'Cultural opportunities' },
+  { id: 'strategy', label: 'Experience concepts' },
   { id: 'experience', label: 'Experience requirements' },
-  { id: 'architecture', label: 'Architectural decisions' },
+  { id: 'architecture', label: 'Spatial/architectural implications' },
   { id: 'concept', label: 'Spatial concept' },
   { id: 'visualization', label: 'Concept render' },
-  { id: 'review', label: 'Professional review' }
+  { id: 'review', label: 'Review' }
 ] as const;
 
 export type Opportunity = z.infer<typeof OpportunitySchema>;
@@ -293,6 +313,7 @@ export type Visualization = z.infer<typeof VisualizationSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
 export type PlacePoi = z.infer<typeof PlacePoiSchema>;
 export type LocationContext = z.infer<typeof LocationContextSchema>;
+export type CulturalPattern = z.infer<typeof CulturalPatternSchema>;
 export type QlooContext = z.infer<typeof QlooContextSchema>;
 export type Counterfactual = z.infer<typeof CounterfactualSchema>;
 export type AnalysisSnapshot = z.infer<typeof AnalysisSnapshotSchema>;

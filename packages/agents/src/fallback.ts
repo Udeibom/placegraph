@@ -6,10 +6,12 @@ import type {
   ExperienceRequirement,
   Opportunity,
   Project,
+  QlooContext,
   SpatialConcept,
   Strategy
 } from '@placegraph/types';
 import { ensureLayout } from './layout';
+import { projectAllowsEventProgramming } from './cultural-patterns';
 
 function locLabel(project: Project): string {
   return (
@@ -61,7 +63,7 @@ export function fallbackLandscapes(project: Project, snapshot: Pick<AnalysisSnap
       : `Cultural affinity evidence is thin for ${place}. Potential landscape is uncertain.`,
     experiences: affinities.slice(0, 10).map((a: any) => ({
       name: a.target,
-      category: a.domain,
+      category: a.genre || a.domain,
       source: 'qloo' as const,
       affinity: a.strength
     })),
@@ -89,6 +91,9 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
   const affinities = (snapshot.qlooContext?.affinities || []).map((a: any) => a.target);
   const pois = snapshot.locationContext?.pois?.map((p) => p.name) || [];
   const cultural = affinities.slice(0, 3).join(', ') || 'adjacent cultural interests';
+  const patterns = snapshot.qlooContext?.culturalPatterns || [];
+  const patternLabels = patterns.slice(0, 3).map((pattern) => pattern.label.toLowerCase());
+  const patternMix = patternLabels.join(' + ') || cultural;
 
   return [
     {
@@ -111,9 +116,9 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       id: generateId('opp'),
       analysisRunId: runId,
       type: 'whitespace',
-      title: `Cultural whitespace: ${cultural}`,
+      title: `Cultural whitespace: ${patternMix}`,
       whoServes: audienceLine(project),
-      why: `Affinities involving ${cultural} appear relevant, while nearby businesses do not obviously deliver that combination as a physical experience.`,
+      why: `Scored affinities cluster around ${patternMix}, while nearby businesses do not obviously deliver that combination as one physical experience.`,
       evidenceRefs: affinities.slice(0, 5),
       assumptions: ['The affinity cluster is shared enough to support a public commercial environment.'],
       uncertainties: ['Affinity is not demand; feasibility research is still required.'],
@@ -121,7 +126,7 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       rationale: `Compare Qloo relationships against existing supply. The gap is a hypothesis for a differentiated ${project.projectType}, not a mandate.`,
       qlooEstablished: affinities.slice(0, 5),
       locallyEstablished: pois.slice(0, 3),
-      inferred: [`Combining ${project.projectType} operations with ${cultural} could be poorly represented locally.`]
+      inferred: [`Combining ${patternMix} into one ${project.projectType} could be poorly represented locally.`]
     },
     {
       id: generateId('opp'),
@@ -142,30 +147,80 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
   ];
 }
 
-export function fallbackStrategies(project: Project, runId: string, opportunities: Opportunity[]): Strategy[] {
-  return opportunities.slice(0, 3).map((op) => ({
-    id: generateId('strat'),
-    analysisRunId: runId,
-    selected: false,
-    direction: op.type,
-    title: op.title,
-    whoServes: op.whoServes,
-    why: op.why,
-    experienceThesis: `Make ${op.type} tangible: a ${project.projectType} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}.`,
-    competitors: op.competitors,
-    risks: op.uncertainties,
-    differentiation: op.type === 'whitespace' ? 'A combination not visibly offered nearby' : op.type === 'destination' ? 'Pull from beyond the immediate catchment' : 'Deeper local cultural fit than copycat peers',
-    evidenceRefs: op.evidenceRefs,
-    assumptions: op.assumptions,
-    uncertainties: op.uncertainties,
-    physicalExperience: `Arrival, primary rooms and support spaces should all be judged against: ${op.why}`,
-    qlooEstablished: op.qlooEstablished?.[0] || undefined,
-    locallyEstablished: op.locallyEstablished?.[0] || undefined,
-    inferred: op.inferred?.[0] || undefined,
-  }));
+export function fallbackStrategies(
+  project: Project,
+  runId: string,
+  opportunities: Opportunity[],
+  qloo?: QlooContext
+): Strategy[] {
+  const patterns = qloo?.culturalPatterns || [];
+  const thesis = qloo?.culturalThesis?.trim();
+  const allowsEvents = projectAllowsEventProgramming(project);
+  const patternNames = patterns.slice(0, 4).map((pattern) => pattern.label.toLowerCase());
+  const anchors = patterns
+    .slice(0, 3)
+    .map((pattern) => `${pattern.label} (${pattern.places.slice(0, 2).join(', ')})`)
+    .join('; ');
+
+  return opportunities.slice(0, 3).map((op, index) => {
+    const hybrid = index === 1 && patterns.length >= 2;
+    const differentiation = hybrid
+      ? `A hybrid of ${patternNames.join(' + ')} that is not a single-use ${project.projectType}.`
+      : op.type === 'whitespace'
+        ? 'A combination not visibly offered nearby'
+        : op.type === 'destination'
+          ? 'Pull from beyond the immediate catchment'
+          : 'Deeper local cultural fit than copycat peers';
+
+    return {
+      id: generateId('strat'),
+      analysisRunId: runId,
+      selected: false,
+      direction: op.type,
+      title: hybrid ? `${project.location.city || locLabel(project)} Cultural Commons` : op.title,
+      whoServes: op.whoServes,
+      why: hybrid
+        ? `${op.why} The scored pattern mix points to ${patternNames.join(', ')}, so the proposition must hold several modes at once.`
+        : op.why,
+      experienceThesis: thesis
+        ? hybrid
+          ? thesis
+          : `Make ${op.type} tangible: a ${project.projectType} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}. ${thesis}`
+        : `Make ${op.type} tangible: a ${project.projectType} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}.`,
+      competitors: op.competitors,
+      risks: op.uncertainties,
+      differentiation,
+      evidenceRefs: op.evidenceRefs,
+      assumptions: op.assumptions,
+      uncertainties: op.uncertainties,
+      physicalExperience: hybrid
+        ? allowsEvents
+          ? `A quiet everyday core, a convertible social/ceremony edge, and a public commerce threshold. Named Qloo patterns: ${anchors}.`
+          : `A quiet everyday core, a sociable hospitality edge, and a public commerce threshold — flexible for daily rituals and small groups without a programmed events hall. Named Qloo patterns: ${anchors}.`
+        : `Arrival, primary rooms and support spaces should all be judged against: ${op.why}${anchors ? ` Named Qloo patterns: ${anchors}.` : ''}`,
+      qlooEstablished: hybrid
+        ? op.qlooEstablished?.slice(0, 3).join(', ') || undefined
+        : op.qlooEstablished?.[0] || undefined,
+      locallyEstablished: op.locallyEstablished?.[0] || undefined,
+      inferred: op.inferred?.[0] || undefined,
+      conceptType: hybrid ? 'hybrid cultural commons' : op.type,
+      fitForAudience: `Fits ${op.whoServes} based on Qloo cultural signals and local context.`,
+      culturalRelationships: op.qlooEstablished?.slice(0, 5) || [],
+      opportunityCaptured: op.why,
+      whyWeakerThanAlternatives: 'Trade-off vs other concepts: consider fit, feasibility, and differentiation against alternatives.',
+      qlooEvidenceSummary: op.qlooEstablished?.length
+        ? `Qloo cultural intelligence supports this concept via: ${op.qlooEstablished.slice(0, 3).join(', ')}.`
+        : 'Qloo evidence limited; relies more on local observation and inference.',
+      evaluationScore: hybrid ? 9 : op.type === 'whitespace' ? 8 : 7,
+      qlooChangedDecision: op.qlooEstablished?.length
+        ? 'This recommendation changed because of Qloo - scored cultural affinities reveal a differentiated opportunity not obvious from generic business analysis.'
+        : undefined,
+    };
+  });
 }
 
 export function fallbackRequirements(project: Project, strategy: Strategy): ExperienceRequirement[] {
+  const allowsEvents = projectAllowsEventProgramming(project);
   const rows: Array<Omit<ExperienceRequirement, 'id'>> = [
     {
       strategyId: strategy.id,
@@ -177,7 +232,9 @@ export function fallbackRequirements(project: Project, strategy: Strategy): Expe
     },
     {
       strategyId: strategy.id,
-      requirement: 'Primary occupied space must support the experience thesis during ordinary operating hours, not only during special programming.',
+      requirement: allowsEvents
+        ? 'Primary occupied space must support the experience thesis during ordinary operating hours, not only during special programming.'
+        : 'Primary occupied space must support the experience thesis during ordinary operating hours, with no reliance on programmed events.',
       rationale: strategy.experienceThesis,
       priority: 'high',
       source: 'inference',
@@ -193,7 +250,7 @@ export function fallbackRequirements(project: Project, strategy: Strategy): Expe
     },
     {
       strategyId: strategy.id,
-      requirement: `Operations (service, back-of-house, ${project.projectType === 'hotel' ? 'guest flow' : 'kitchen/stock'}) must remain functional if cultural programming is present.`,
+      requirement: `Operations (service, back-of-house, ${project.projectType === 'hotel' ? 'guest flow' : 'kitchen/stock'}) must remain functional during ordinary daily use${allowsEvents ? ' and cultural programming' : ''}.`,
       rationale: 'Cultural intent cannot collapse ordinary commercial function.',
       priority: 'high',
       source: 'operation',
@@ -222,6 +279,7 @@ export function fallbackRequirements(project: Project, strategy: Strategy): Expe
 }
 
 export function fallbackArchitecture(project: Project, strategy: Strategy, requirements: ExperienceRequirement[]) {
+  const allowsEvents = projectAllowsEventProgramming(project);
   const decisions: ArchitecturalDecision[] = [
     {
       id: generateId('dec'),
@@ -231,7 +289,9 @@ export function fallbackArchitecture(project: Project, strategy: Strategy, requi
       whyChain: [
         { id: generateId('prov'), kind: 'decision', explanation: 'Arrival is the first spatial proof of who the place is for.', refs: [], qlooRefs: [] }
       ],
-      alternatives: ['Transparent storefront with no threshold', 'Theatrical arrival that overpromises programming'],
+      alternatives: allowsEvents
+        ? ['Transparent storefront with no threshold', 'Theatrical arrival that overpromises programming']
+        : ['Transparent storefront with no threshold', 'Theatrical arrival that overpromises events'],
       constraintsConsidered: project.constraints?.map((c) => `${c.key}: ${c.value}`) || [],
       inferred: 'Identity should be readable without relying on signage adjectives.',
       unverified: 'Whether the street condition can support a stronger threshold.'
@@ -278,8 +338,12 @@ export function fallbackArchitecture(project: Project, strategy: Strategy, requi
       { name: 'Support', purpose: 'Kitchen, service, staff, storage', adjacency: 'Primary (screened)' }
     ],
     materials: ['Tactile, place-specific materials rather than imported luxury kits'],
-    lighting: ['Layered ambient light with adjustable scenes if programming is secondary, not primary'],
-    furniture: ['Flexible primary seating that still feels complete when not in event mode'],
+    lighting: allowsEvents
+      ? ['Layered ambient light with adjustable scenes if programming is secondary, not primary']
+      : ['Layered ambient light for study, conversation and display, with no scenes tied to programmed events'],
+    furniture: allowsEvents
+      ? ['Flexible primary seating that still feels complete when not in event mode']
+      : ['Flexible seating that feels complete in everyday use, including small-group configurations'],
     circulation: 'One clear public path; service never crosses the primary experience axis.',
     exterior: `Exterior should belong to ${locLabel(project)} while signalling the chosen strategy.`,
     opsNotes: ['This is a preliminary concept for professional development, not a construction set.']

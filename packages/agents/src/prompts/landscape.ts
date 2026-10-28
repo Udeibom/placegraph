@@ -17,6 +17,11 @@ Evidence rules — read before interpreting Qloo:
 - Only scored Qloo AFFINITIES may be described as "Qloo established" or used as affinity evidence.
 - If no affinities resolved, say the potential landscape is insufficient. Do not promote search matches into cultural relationships.
 
+Cultural pattern interpretation:
+- The Qloo context includes culturalPatterns and culturalThesis. They group scored affinities by place genre. Treat the pattern mix as the primary cultural signal; the place names are evidence anchors, not a checklist of venues to copy.
+- Synthesize the modes (for example hospitality, ceremony, commerce, campus life, spectacle) instead of just listing places. If the mix is cross-programmatic, say the opportunity is hybrid rather than single-use.
+- Do not default to café/study language unless the patterns support it.
+
 Instructions for audience affinities:
 - Where multiple audiences share affinities with the same entity or domain, this is a STRONGER signal than if only one audience shows it.
 - Where audiences diverge significantly, note this in audienceAnalysis and explain the spatial implication.

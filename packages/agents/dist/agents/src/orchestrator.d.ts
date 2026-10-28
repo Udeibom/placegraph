@@ -49,6 +49,15 @@ export declare class AgentOrchestrator {
             insufficient: boolean;
             entities: any[];
             affinities: any[];
+            culturalPatterns: {
+                key: string;
+                label: string;
+                count: number;
+                places: string[];
+                genres: string[];
+                implication: string;
+            }[];
+            culturalThesis: string;
             audienceAffinities?: Record<string, any[]> | undefined;
             crossDomain?: any;
         } | undefined;
@@ -108,6 +117,7 @@ export declare class AgentOrchestrator {
                 experienceThesis: string;
                 risks: string[];
                 differentiation: string;
+                culturalRelationships: string[];
                 qlooEstablished?: string | undefined;
                 locallyEstablished?: string | undefined;
                 inferred?: string | undefined;
@@ -122,6 +132,13 @@ export declare class AgentOrchestrator {
                     metadata?: Record<string, any> | undefined;
                 } | undefined;
                 physicalExperience?: string | undefined;
+                conceptType?: string | undefined;
+                fitForAudience?: string | undefined;
+                opportunityCaptured?: string | undefined;
+                whyWeakerThanAlternatives?: string | undefined;
+                qlooEvidenceSummary?: string | undefined;
+                evaluationScore?: number | undefined;
+                qlooChangedDecision?: string | undefined;
             }[];
             requirements: {
                 id: string;
@@ -159,6 +176,7 @@ export declare class AgentOrchestrator {
                 createdAt: string;
                 prompt: string;
                 images: string[];
+                viewLabels: string[];
                 model: string;
             }[];
             reviews: {
@@ -203,6 +221,15 @@ export declare class AgentOrchestrator {
                 insufficient: boolean;
                 entities: any[];
                 affinities: any[];
+                culturalPatterns: {
+                    key: string;
+                    label: string;
+                    count: number;
+                    places: string[];
+                    genres: string[];
+                    implication: string;
+                }[];
+                culturalThesis: string;
                 audienceAffinities?: Record<string, any[]> | undefined;
                 crossDomain?: any;
             } | undefined;
@@ -335,6 +362,7 @@ export declare class AgentOrchestrator {
             experienceThesis: string;
             risks: string[];
             differentiation: string;
+            culturalRelationships: string[];
             qlooEstablished?: string | undefined;
             locallyEstablished?: string | undefined;
             inferred?: string | undefined;
@@ -349,6 +377,13 @@ export declare class AgentOrchestrator {
                 metadata?: Record<string, any> | undefined;
             } | undefined;
             physicalExperience?: string | undefined;
+            conceptType?: string | undefined;
+            fitForAudience?: string | undefined;
+            opportunityCaptured?: string | undefined;
+            whyWeakerThanAlternatives?: string | undefined;
+            qlooEvidenceSummary?: string | undefined;
+            evaluationScore?: number | undefined;
+            qlooChangedDecision?: string | undefined;
         }[];
         analysis: {
             status: "analyzing" | "review" | "idle" | "ready" | "strategy_selected" | "designed" | "visualized";
@@ -406,6 +441,7 @@ export declare class AgentOrchestrator {
                 experienceThesis: string;
                 risks: string[];
                 differentiation: string;
+                culturalRelationships: string[];
                 qlooEstablished?: string | undefined;
                 locallyEstablished?: string | undefined;
                 inferred?: string | undefined;
@@ -420,6 +456,13 @@ export declare class AgentOrchestrator {
                     metadata?: Record<string, any> | undefined;
                 } | undefined;
                 physicalExperience?: string | undefined;
+                conceptType?: string | undefined;
+                fitForAudience?: string | undefined;
+                opportunityCaptured?: string | undefined;
+                whyWeakerThanAlternatives?: string | undefined;
+                qlooEvidenceSummary?: string | undefined;
+                evaluationScore?: number | undefined;
+                qlooChangedDecision?: string | undefined;
             }[];
             requirements: {
                 id: string;
@@ -457,6 +500,7 @@ export declare class AgentOrchestrator {
                 createdAt: string;
                 prompt: string;
                 images: string[];
+                viewLabels: string[];
                 model: string;
             }[];
             reviews: {
@@ -501,6 +545,15 @@ export declare class AgentOrchestrator {
                 insufficient: boolean;
                 entities: any[];
                 affinities: any[];
+                culturalPatterns: {
+                    key: string;
+                    label: string;
+                    count: number;
+                    places: string[];
+                    genres: string[];
+                    implication: string;
+                }[];
+                culturalThesis: string;
                 audienceAffinities?: Record<string, any[]> | undefined;
                 crossDomain?: any;
             } | undefined;

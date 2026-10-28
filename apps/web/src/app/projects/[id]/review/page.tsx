@@ -91,11 +91,10 @@ export default function ReviewPage() {
       <PipelineNav projectId={id} current="review" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.375rem' }}>
-        Professional review
+        Review & decision comparison
       </h1>
-      <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', maxWidth: '44rem', lineHeight: 1.65, marginBottom: '2rem' }}>
-        Feedback causes reasoning — not blind regeneration. The agent diagnoses which reasoning layer the
-        problem sits in, then revises from that layer upward.
+      <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', maxWidth: '46rem', lineHeight: 1.65, marginBottom: '2rem' }}>
+        Feedback causes reasoning — not blind regeneration. The agent diagnoses which reasoning layer needs revision. Compare generic AI/business analysis vs Qloo-informed analysis to see how Qloo changes the investment decision.
       </p>
 
       {/* Feedback form */}
@@ -212,10 +211,10 @@ export default function ReviewPage() {
         }}>
           <div>
             <h2 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.25rem', fontWeight: 700, color: 'var(--ink)' }}>
-              Does culture change the recommendation?
+              Generic AI/business analysis vs Qloo-informed analysis
             </h2>
             <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginTop: '0.125rem' }}>
-              Runs the same brief twice — once with Qloo cultural intelligence, once without — then isolates what changed.
+              Same brief, two analyses. See how Qloo cultural intelligence discovers a differentiated opportunity and changes the investment decision.
             </p>
           </div>
           <button
@@ -245,13 +244,13 @@ export default function ReviewPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
               <div style={{ padding: '0.875rem 1rem', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--line-2)' }}>
                 <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-2)', marginBottom: '0.375rem' }}>
-                  Without Qloo
+                  Generic AI/business analysis
                 </p>
                 <p style={{ fontSize: '0.9rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>{cf.genericStrategy}</p>
               </div>
               <div style={{ padding: '0.875rem 1rem', background: 'var(--qloo-bg)', borderRadius: 'var(--radius-md)', border: '1.5px solid rgba(181,129,74,0.25)' }}>
                 <p style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.375rem' }}>
-                  With Qloo
+                  Qloo-informed analysis
                 </p>
                 <p style={{ fontSize: '0.9rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>{cf.culturalStrategy}</p>
               </div>
@@ -260,7 +259,7 @@ export default function ReviewPage() {
             {cf.whatQlooChanged?.length > 0 && (
               <div style={{ marginBottom: '1rem' }}>
                 <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.5rem' }}>
-                  What Qloo changed
+                  This recommendation changed because of Qloo
                 </p>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {cf.whatQlooChanged.map((item: string, i: number) => (
