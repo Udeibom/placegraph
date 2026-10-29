@@ -229,8 +229,8 @@ export default function ProjectPage() {
 
         {analysis ? (
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: streaming ? '1.25rem' : 0 }}>
-            <Link href={`/projects/${id}/analysis`} className="pg-btn">
-              View landscapes →
+            <Link href={`/projects/${id}/recommendation`} className="pg-btn">
+              View recommendation →
             </Link>
             <button
               type="button"

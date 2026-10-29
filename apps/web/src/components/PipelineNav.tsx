@@ -5,33 +5,28 @@ import type { CSSProperties } from 'react';
 import { PIPELINE_STAGES } from '@placegraph/types';
 
 const hrefFor: Record<string, (id: string) => string> = {
-  place:         (id) => `/projects/${id}`,
-  culture:       (id) => `/projects/${id}/analysis`,
-  opportunity:   (id) => `/projects/${id}/analysis`,
-  strategy:      (id) => `/projects/${id}/strategies`,
-  experience:    (id) => `/projects/${id}/concept`,
-  architecture:  (id) => `/projects/${id}/concept`,
-  concept:       (id) => `/projects/${id}/concept`,
-  visualization: (id) => `/projects/${id}/concept`,
-  review:        (id) => `/projects/${id}/review`,
+  place:          (id) => `/projects/${id}`,
+  recommendation: (id) => `/projects/${id}/recommendation`,
+  spatial:        (id) => `/projects/${id}/concept`,
+  review:         (id) => `/projects/${id}/review`,
 };
 
-// Stage order for determining done/pending
-const STAGE_ORDER = PIPELINE_STAGES.map((s) => s.id);
-
-// Accepts both analysis statuses and the coarser project status values.
+// Which stage index is considered "done" for each analysis/project status.
+// Stage indices: 0=place, 1=recommendation, 2=spatial, 3=review
 const statusCompletedThrough: Record<string, number> = {
   draft:             -1,
-  analyzing:          1,
-  strategizing:       3,
-  ready:              3,
-  strategy_selected:  4,
-  designing:          4,
-  designed:           6,
-  visualized:         7,
-  complete:           7,
-  review:             8,
+  analyzing:          0,
+  ready:              0,
+  strategizing:       0,
+  strategy_selected:  1,
+  designing:          1,
+  designed:           2,
+  visualized:         2,
+  complete:           2,
+  review:             3,
 };
+
+const STAGE_ORDER = PIPELINE_STAGES.map((s) => s.id);
 
 export function PipelineNav({
   projectId,
@@ -70,18 +65,18 @@ export function PipelineNav({
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            padding: '0.375rem 0.625rem',
+            padding: '0.375rem 0.75rem',
             borderRadius: 'var(--radius)',
             textDecoration: 'none',
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: isActive ? 600 : 400,
-            letterSpacing: '0.03em',
+            letterSpacing: '0.02em',
             color: isActive ? 'var(--accent-2)' : isDone ? 'var(--accent)' : 'var(--muted-2)',
             background: isActive ? 'var(--accent-light)' : 'transparent',
             transition: 'color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease)',
             whiteSpace: 'nowrap',
             cursor: isPending ? 'not-allowed' : 'pointer',
-            opacity: isPending ? 0.55 : 1,
+            opacity: isPending ? 0.5 : 1,
           };
 
           const indicator = (
@@ -104,7 +99,7 @@ export function PipelineNav({
                   <path d="M1 3.5 L3.5 6 L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               ) : isActive ? (
-                <span className="pipeline-dot-active" style={{
+                <span style={{
                   width: '6px', height: '6px', borderRadius: '50%',
                   background: 'white', display: 'block',
                 }} />
@@ -138,11 +133,11 @@ export function PipelineNav({
                 </Link>
               )}
 
-              {/* Connector line */}
+              {/* Connector */}
               {!isLast && (
                 <span style={{
                   display: 'block',
-                  width: '1.25rem',
+                  width: '2rem',
                   height: '1.5px',
                   background: isDone ? 'var(--accent-mid)' : 'var(--line-2)',
                   flexShrink: 0,

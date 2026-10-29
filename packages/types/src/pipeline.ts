@@ -286,15 +286,10 @@ export const AnalysisSnapshotSchema = z.object({
 });
 
 export const PIPELINE_STAGES = [
-  { id: 'place', label: 'Location + audience + objective' },
-  { id: 'culture', label: 'Qloo cultural intelligence' },
-  { id: 'opportunity', label: 'Cultural opportunities' },
-  { id: 'strategy', label: 'Experience concepts' },
-  { id: 'experience', label: 'Experience requirements' },
-  { id: 'architecture', label: 'Spatial/architectural implications' },
-  { id: 'concept', label: 'Spatial concept' },
-  { id: 'visualization', label: 'Concept render' },
-  { id: 'review', label: 'Review' }
+  { id: 'place',          label: 'Brief' },
+  { id: 'recommendation', label: 'Recommendation' },
+  { id: 'spatial',        label: 'Spatial translation' },
+  { id: 'review',         label: 'Review' },
 ] as const;
 
 export type Opportunity = z.infer<typeof OpportunitySchema>;

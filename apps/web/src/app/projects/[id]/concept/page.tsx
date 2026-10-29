@@ -156,14 +156,14 @@ export default function ConceptPage() {
         background: 'var(--surface-raised)',
       }}>
         <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '1.5rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.5rem' }}>
-          Choose a commercial direction first
+          Choose an investment direction first
         </h1>
         <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', lineHeight: 1.65, marginBottom: '1.25rem' }}>
-          Experience requirements, architectural decisions and the spatial concept are all derived from a
-          selected strategy. Pick one of the three directions to continue.
+          Experience requirements, architectural decisions and the spatial concept are all downstream
+          consequences of a chosen investment direction. Review the recommendation and proceed from there.
         </p>
-        <Link href={`/projects/${id}/strategies`} className="pg-btn">
-          Go to strategies →
+        <Link href={`/projects/${id}/recommendation`} className="pg-btn">
+          Go to recommendation →
         </Link>
       </div>
     </main>
@@ -174,14 +174,16 @@ export default function ConceptPage() {
       <PipelineNav projectId={id} current="concept" analysisStatus={analysis?.status ?? project.status} />
 
       <h1 style={{ fontFamily: '"Libre Baskerville", Georgia, serif', fontSize: '2rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.25rem' }}>
-        Experience strategy → spatial & architectural implications
+        Spatial translation
       </h1>
       <p style={{ fontSize: '0.9375rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-        Selected experience concept:{' '}
+        Investment direction:{' '}
         <strong style={{ color: 'var(--ink-2)' }}>{strategy.title}</strong>
       </p>
       <p style={{ fontSize: '0.875rem', color: 'var(--muted)', maxWidth: '46rem', lineHeight: 1.65, marginBottom: '2rem' }}>
-        Architecture is a downstream translation of the culturally-validated concept. Every decision below traces to Qloo cultural intelligence, local observation, or agent inference — with provenance exposed.
+        These requirements and spatial decisions are a direct consequence of the chosen investment direction.
+        Every decision traces back to the Qloo cultural evidence, local observation, or agent inference
+        that made this direction the strongest choice for this location.
       </p>
 
       {/* Experience requirements */}
