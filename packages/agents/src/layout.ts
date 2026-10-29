@@ -17,11 +17,27 @@ const ZONE_ALIASES: Array<{ patterns: RegExp; label: string }> = [
 ];
 
 function friendlyZoneName(raw: string): string {
+  // First try alias matching on the original string
   for (const { patterns, label } of ZONE_ALIASES) {
     if (patterns.test(raw)) return label;
   }
+
+  // Split camelCase / PascalCase into words: "frontBar" → "Front bar",
+  // "flexibleZone" → "Flexible zone", "privateDining" → "Private dining"
+  const split = raw
+    .replace(/([a-z])([A-Z])/g, '$1 $2')   // camelCase split
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // ABCDef → ABC Def
+    .replace(/_/g, ' ')                      // snake_case
+    .replace(/-/g, ' ')                      // kebab-case
+    .trim();
+
+  // Try alias matching again on the split string
+  for (const { patterns, label } of ZONE_ALIASES) {
+    if (patterns.test(split)) return label;
+  }
+
   // Capitalise first letter only
-  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+  return split.charAt(0).toUpperCase() + split.slice(1).toLowerCase();
 }
 
 // ─── Primary-zone detection ───────────────────────────────────────────────

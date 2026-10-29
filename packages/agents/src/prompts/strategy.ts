@@ -27,7 +27,7 @@ Direction types (choose the best fit):
 
 Each concept must include:
 - direction: one of the types above
-- title: a specific, non-generic name for this experience concept
+- title: 3–5 words maximum. Evocative, not descriptive. The kind of working name a real hospitality operator or investor would use — something you could put above a door or say in a pitch. Examples: “Quiet Arch”, “The Copper Still”, “Corner House”, “Rye Lane Social”, “The Yard”. Never describe what the concept does in the name. Never start with “The Design-Forward” or “The Culturally-”. Never use adjective + noun + noun chains.
 - whoServes: specific primary audience(s) from the brief
 - why: why this concept is viable at this location right now given Qloo signals
 - experienceThesis: the unique feeling / value proposition of this experience

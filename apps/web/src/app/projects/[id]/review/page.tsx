@@ -194,7 +194,7 @@ export default function ReviewPage() {
                     </p>
                   )}
                   {/* Post-revision navigation — tell the user where the change landed */}
-                  {rev.resolved && (
+                  {(rev.resolved !== false) && (
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {isStrategy && (
                         <Link

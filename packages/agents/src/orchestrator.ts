@@ -560,8 +560,17 @@ export class AgentOrchestrator {
       qlooContext: compactPromptQloo(qlooContext),
       hardConstraints: constraintPrompt(input.project)
     }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
-    const stratJson = await this.json<any>(stratPrompt, { strategies: stratFallback }, undefined, 3500);
-    const strategies = (stratJson.strategies || stratFallback)
+    let stratJson = await this.json<any>(stratPrompt, { strategies: stratFallback }, undefined, 3500);
+
+    // Retry once if fewer than 2 strategies were returned — the LLM sometimes
+    // collapses multiple directions into one. A retry with an explicit count
+    // instruction almost always recovers the full set.
+    if (!stratJson.strategies || stratJson.strategies.length < 2) {
+      const retryPrompt = stratPrompt + '\n\nCRITICAL: You MUST return exactly 3 strategies in the JSON array. Each must have a genuinely different direction type (Local Cultural Alignment, Cultural Whitespace, Destination Experience). Do not return fewer than 3.';
+      stratJson = await this.json<any>(retryPrompt, { strategies: stratFallback }, undefined, 3500);
+    }
+
+    const strategies = (stratJson.strategies?.length >= 2 ? stratJson.strategies : stratFallback)
       .map((s: any) => normalizeStrategy(s, runId))
       .map((s: Strategy) => sanitizeStrategyConstraints(s, input.project, culturalLabels));
     snapshot.strategies = (strategies.length ? strategies : stratFallback).map((s: any) => ({

@@ -119,8 +119,14 @@ export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt
     .filter(Boolean)
     .slice(0, 3)
     .join(', ');
+  // Extract a structural anchor from the building description or constraints.
+  // A distinctive physical structure (arch, vault, warehouse) grounds all three
+  // renders in the same spatial context and improves render-to-render coherence.
+  const structuralAnchor = deriveStructuralAnchor(input.project);
+
   const common = [
     `Building: ${buildingDesc}${location ? ` in ${location}` : ''}.`,
+    structuralAnchor ? `Structure: ${structuralAnchor}.` : '',
     concept.organization ? `Spatial idea: ${clause(concept.organization, 180)}.` : '',
     zones ? `Zones: ${trim(zones, 240)}.` : '',
     materials ? `Materials: ${trim(materials, 160)}.` : ''
@@ -149,6 +155,42 @@ export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt
       negativePrompt: VISUALIZATION_NEGATIVE_PROMPT
     };
   });
+}
+
+// ─── Structural anchor ───────────────────────────────────────────────────
+// Extracts a specific structural description to anchor render coherence.
+// A distinctive structure (railway arch, Victorian warehouse, barrel vault)
+// is the single most effective coherence signal for image generation models.
+function deriveStructuralAnchor(project: { businessType?: string; objective?: string; constraints?: Array<{ key: string; value: string }>; floorArea?: string }): string {
+  const corpus = [
+    project.businessType,
+    project.objective,
+    ...(project.constraints ?? []).map((c) => `${c.key} ${c.value}`)
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (/railway\s+arch|rail\s+arch/i.test(corpus)) {
+    return 'single-span Victorian railway arch, brick barrel vault ceiling approximately 5m high, arch span approximately 8m wide, exposed brick walls throughout';
+  }
+  if (/warehouse/i.test(corpus)) {
+    return 'converted industrial warehouse, exposed steel trusses, high ceilings approximately 6\u20138m, large factory windows';
+  }
+  if (/vault/i.test(corpus)) {
+    return 'vaulted basement or cellar, low curved ceiling, exposed masonry walls';
+  }
+  if (/mews/i.test(corpus)) {
+    return 'converted mews building, low pitched roof, cobblestone frontage, modest two-storey scale';
+  }
+  if (/listed|heritage/i.test(corpus)) {
+    return 'listed heritage building, period detailing, original facade materials retained';
+  }
+
+  // Fall back to floor area as a coherence anchor
+  const area = project.floorArea;
+  if (area) return `approximately ${area} ground-floor commercial unit`;
+
+  return '';
 }
 
 // ─── Building description ─────────────────────────────────────────────────

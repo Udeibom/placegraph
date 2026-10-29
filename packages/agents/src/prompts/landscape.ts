@@ -100,6 +100,16 @@ Chain levels — read each description carefully before choosing:
 
 Decision rule: always choose the highest level that addresses the root of the feedback. A comment about cultural distinctiveness is strategy, not architecture. A comment about a specific room layout is architecture. When in doubt between two levels, choose the higher one.
 
+Examples of correct classification:
+- "Make the case more strongly for why this one is culturally distinct" → strategy (this is about cultural differentiation, not spatial decisions)
+- "This doesn't feel distinct from other wine bars nearby" → strategy
+- "The audience targeting feels wrong" → strategy
+- "Why did Qloo change the recommendation?" → evidence
+- "The kitchen layout doesn't work for a small prep kitchen" → architecture
+- "The materials feel too industrial" → architecture
+- "The image looks nothing like a wine bar" → visualization
+- "The requirements list doesn't prioritise the acoustic constraint" → experience
+
 Return JSON:
 {
   "chainLevel": "evidence|opportunity|strategy|experience|architecture|visualization",
