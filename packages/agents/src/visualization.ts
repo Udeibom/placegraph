@@ -93,6 +93,12 @@ export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt
     input.project.location?.neighborhood,
     input.project.location?.city
   ]).join(', ');
+
+  // Build a specific building description. businessType is more precise than
+  // projectType. Extract structural keywords (arch, warehouse, vault, etc.)
+  // from businessType and objective so renders reflect the actual building.
+  const buildingDesc = deriveBuildingDescription(input.project);
+
   const zones = (concept.zones ?? [])
     .map((zone: any) => clean(zone?.name))
     .filter(Boolean)
@@ -114,7 +120,7 @@ export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt
     .slice(0, 3)
     .join(', ');
   const common = [
-    `Building: ${input.project.projectType} in ${location || 'the project site'}.`,
+    `Building: ${buildingDesc}${location ? ` in ${location}` : ''}.`,
     concept.organization ? `Spatial idea: ${clause(concept.organization, 180)}.` : '',
     zones ? `Zones: ${trim(zones, 240)}.` : '',
     materials ? `Materials: ${trim(materials, 160)}.` : ''
@@ -143,6 +149,55 @@ export function buildVisualizationPrompts(input: VisualizationInput): ViewPrompt
       negativePrompt: VISUALIZATION_NEGATIVE_PROMPT
     };
   });
+}
+
+// ─── Building description ─────────────────────────────────────────────────
+// Extract the most specific description of the physical structure from the
+// project brief. businessType is preferred over projectType because it
+// contains user-supplied specifics ("independent wine bar in a railway arch").
+// We also scan objective and constraints for structural keywords.
+
+const STRUCTURAL_KEYWORDS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /railway\s+arch|rail\s+arch/i,      label: 'railway arch unit' },
+  { pattern: /warehouse/i,                        label: 'warehouse' },
+  { pattern: /railway\s+arch|arched\s+unit/i,    label: 'railway arch' },
+  { pattern: /arch\s+unit|brick\s+arch/i,        label: 'brick arch unit' },
+  { pattern: /arch\b/i,                           label: 'arch unit' },
+  { pattern: /vault/i,                            label: 'vaulted space' },
+  { pattern: /mews/i,                             label: 'mews building' },
+  { pattern: /shopfront|shop\s+front/i,           label: 'shopfront' },
+  { pattern: /ground\s+floor|retail\s+unit/i,    label: 'ground-floor unit' },
+  { pattern: /listed\s+building|heritage\s+build/i, label: 'listed building' },
+  { pattern: /converted\s+\w+/i,                  label: 'converted space' },
+  { pattern: /industrial/i,                        label: 'industrial unit' },
+];
+
+function deriveBuildingDescription(project: { projectType: string; businessType?: string; objective?: string; constraints?: Array<{ key: string; value: string }> }): string {
+  const corpus = [
+    project.businessType,
+    project.objective,
+    ...(project.constraints ?? []).map((c) => `${c.key} ${c.value}`)
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  // Try to find a structural keyword in the corpus
+  for (const { pattern, label } of STRUCTURAL_KEYWORDS) {
+    if (pattern.test(corpus)) {
+      // Also prepend the businessType if it adds specificity
+      const bt = clean(project.businessType);
+      if (bt && bt.toLowerCase() !== project.projectType) {
+        return `${bt} (${label})`;
+      }
+      return `${project.projectType} (${label})`;
+    }
+  }
+
+  // No structural keyword found — use businessType if it's more specific
+  const bt = clean(project.businessType);
+  if (bt && bt.toLowerCase() !== project.projectType) return bt;
+
+  return project.projectType;
 }
 
 function clean(value: unknown): string {

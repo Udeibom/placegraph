@@ -118,6 +118,16 @@ export async function gatherQlooContext(
       })
     : [];
 
+  // Fetch cross-domain affinities (brand, artist, film) for the anchor.
+  // These reveal the broader taste profile: what brands, musicians, and films
+  // resonate with people who frequent this location cluster.
+  const anchorCrossDomainAffinities: QlooAffinity[] = anchor?.id
+    ? await client.getAffinities(anchor, {
+        limit: 10,
+        domains: ['urn:entity:brand', 'urn:entity:artist', 'urn:entity:film']
+      }).catch(() => [])
+    : [];
+
   const audienceResults = await Promise.all(
     project.audiences.map(async (aud) => {
       try {
@@ -187,7 +197,7 @@ export async function gatherQlooContext(
     : null;
 
   const entities   = uniqueById(allEntities);
-  const affinities = dedupeAffinities([...anchorAffinities, ...allAffinities]);
+  const affinities = dedupeAffinities([...anchorAffinities, ...anchorCrossDomainAffinities, ...allAffinities]);
   const notes: string[] = ['Live Qloo queries were run per audience. Scores are cultural relationships, not demand.'];
 
   if (locationResolved) {

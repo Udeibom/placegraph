@@ -214,12 +214,18 @@ function compactPatterns(patterns: any[], limit = 7, placeLimit = 4) {
 
 function compactPromptQloo(qloo: any) {
   if (!qloo) return qloo;
+  const cross = qloo.crossDomain?.results;
   return {
     source: qloo.source,
     insufficient: qloo.insufficient,
     culturalThesis: qloo.culturalThesis,
     culturalPatterns: compactPatterns(qloo.culturalPatterns, 7, 4),
     affinities: compactAffinities(qloo.affinities, 8),
+    // Include cross-domain brands and artists so strategies can reference them
+    crossDomain: cross ? {
+      brands: compactAffinities(cross.brands, 5),
+      artists: compactAffinities(cross.artists, 5),
+    } : undefined,
     notes: (qloo.notes || []).slice(0, 2)
   };
 }

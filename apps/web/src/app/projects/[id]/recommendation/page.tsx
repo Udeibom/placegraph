@@ -97,12 +97,14 @@ function WinnerPanel({
   strategy,
   qlooThesis,
   qlooChangedBullets,
+  distinctiveness,
   onProceed,
   busy,
 }: {
   strategy: Strategy;
   qlooThesis: string;
   qlooChangedBullets: string[];
+  distinctiveness: string | null;
   onProceed: (id: string) => void;
   busy: boolean;
 }) {
@@ -206,6 +208,28 @@ function WinnerPanel({
           )}
         </div>
 
+        {/* Cultural distinctiveness — why this is impossible without Qloo */}
+        {distinctiveness && (
+          <div style={{
+            padding: '0.875rem 1rem',
+            background: 'var(--surface)',
+            border: '1px solid var(--line-2)',
+            borderLeft: '3px solid var(--qloo)',
+            borderRadius: 'var(--radius)',
+            marginBottom: '1.5rem',
+          }}>
+            <p style={{
+              fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.1em', color: 'var(--qloo)', marginBottom: '0.375rem',
+            }}>
+              Why this concept is specific, not generic
+            </p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.65 }}>
+              {distinctiveness}
+            </p>
+          </div>
+        )}
+
         {/* Three Qloo signal questions */}
         <div style={{
           display: 'grid',
@@ -296,6 +320,31 @@ function SignalCard({
       </p>
     </div>
   );
+}
+
+// ─── Cultural distinctiveness statement ────────────────────────────────────
+// Builds a single sentence that answers: "why is this concept the one that
+// couldn't have come from generic AI?" Uses existing landscape gaps + top
+// Qloo affinity names to form a verifiable claim, not a generic assertion.
+
+function buildDistinctivenessStatement(
+  winner: Strategy,
+  existingGaps: string[],
+  topAffinities: Array<{ target: string; strength: number }>,
+  location: string,
+): string | null {
+  const topNames = topAffinities.slice(0, 3).map((a) => `${a.target} (${a.strength.toFixed(2)})`);
+  const gapText = existingGaps.slice(0, 1)[0] ?? null;
+
+  if (!topNames.length) return null;
+
+  const affinityClause = topNames.join(' · ');
+  const locationStr = location || 'this location';
+  const gapClause = gapText
+    ? `${gapText.replace(/^[.→\s]+/, '').toLowerCase()}`
+    : 'no equivalent exists nearby';
+
+  return `Every other option on this street was derivable from a map and a demographic report. This direction exists because Qloo's graph found ${affinityClause} — places with no physical presence near ${locationStr} — whose audiences match the pattern here. That scored absence (${gapClause}) is what makes this concept specific rather than generic.`;
 }
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
@@ -459,6 +508,99 @@ function AlternativeCard({ strategy, rank }: { strategy: Strategy; rank: number 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Cross-domain affinity display ────────────────────────────────────────
+
+function CrossDomainSection({ crossDomain }: { crossDomain: any }) {
+  if (!crossDomain?.results) return null;
+
+  const { places, brands, artists } = crossDomain.results as {
+    places?: Array<{ target: string; strength: number }>;
+    brands?: Array<{ target: string; strength: number }>;
+    artists?: Array<{ target: string; strength: number }>;
+  };
+
+  const hasBrands  = brands?.length  && brands.length  > 0;
+  const hasArtists = artists?.length && artists.length > 0;
+
+  if (!hasBrands && !hasArtists) return null;
+
+  return (
+    <div style={{ marginBottom: '1.75rem' }}>
+      <p style={{
+        fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase',
+        letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.5rem',
+      }}>
+        Cross-domain taste profile
+      </p>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+        Brands, artists, and cultural references that resonate with this audience — not places, but the broader aesthetic identity they carry.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))', gap: '0.75rem' }}>
+        {hasBrands && (
+          <div style={{
+            padding: '0.875rem 1rem',
+            background: 'var(--qloo-bg)',
+            border: '1px solid rgba(181,129,74,0.22)',
+            borderRadius: 'var(--radius)',
+          }}>
+            <p style={{
+              fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--qloo)', marginBottom: '0.375rem',
+            }}>
+              Brand affinities
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {(brands ?? []).slice(0, 8).map((b) => (
+                <span key={b.target} style={{
+                  fontSize: '0.75rem', padding: '0.1rem 0.45rem', borderRadius: '999px',
+                  border: '1px solid rgba(181,129,74,0.3)', background: 'var(--surface)', color: 'var(--ink-2)',
+                }}>
+                  {b.target}
+                  {typeof b.strength === 'number' && (
+                    <span style={{ color: 'var(--qloo)', marginLeft: '0.2rem', fontWeight: 600 }}>
+                      {b.strength.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {hasArtists && (
+          <div style={{
+            padding: '0.875rem 1rem',
+            background: 'var(--inference-bg)',
+            border: '1px solid rgba(90,122,158,0.2)',
+            borderRadius: 'var(--radius)',
+          }}>
+            <p style={{
+              fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '0.06em', color: 'var(--inference)', marginBottom: '0.375rem',
+            }}>
+              Music & artist affinities
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {(artists ?? []).slice(0, 8).map((a) => (
+                <span key={a.target} style={{
+                  fontSize: '0.75rem', padding: '0.1rem 0.45rem', borderRadius: '999px',
+                  border: '1px solid rgba(90,122,158,0.3)', background: 'var(--surface)', color: 'var(--ink-2)',
+                }}>
+                  {a.target}
+                  {typeof a.strength === 'number' && (
+                    <span style={{ color: 'var(--inference)', marginLeft: '0.2rem', fontWeight: 600 }}>
+                      {a.strength.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -686,6 +828,24 @@ export default function RecommendationPage() {
   const opps       = analysis.opportunities ?? [];
   const pois       = analysis.locationContext?.pois ?? [];
 
+  // Build the cultural distinctiveness statement from existing gaps + top affinities
+  const existingGaps = landscapes?.existing?.gaps ?? [];
+  const topAffinities = (analysis.qlooContext?.affinities ?? [])
+    .filter((a: any) => typeof a?.strength === 'number')
+    .sort((a: any, b: any) => b.strength - a.strength)
+    .slice(0, 5)
+    .map((a: any) => ({ target: a.target, strength: a.strength }));
+  const locationStr = [
+    project.location.neighborhood,
+    project.location.city,
+  ].filter(Boolean).join(', ');
+  const distinctiveness = buildDistinctivenessStatement(
+    designedStrategy,
+    existingGaps,
+    topAffinities,
+    locationStr,
+  );
+
   return (
     <main>
       <PipelineNav
@@ -717,6 +877,7 @@ export default function RecommendationPage() {
         strategy={designedStrategy}
         qlooThesis={qlooThesis}
         qlooChangedBullets={qlooChangedBullets}
+        distinctiveness={distinctiveness}
         onProceed={proceed}
         busy={streaming}
       />
@@ -802,6 +963,9 @@ export default function RecommendationPage() {
                 </p>
               </div>
             )}
+
+            {/* Cross-domain: brands, artists */}
+            <CrossDomainSection crossDomain={analysis.qlooContext?.crossDomain} />
 
             {/* Landscapes */}
             {landscapes && (

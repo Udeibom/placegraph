@@ -88,21 +88,23 @@ Spatial concept: {concept}
 Qloo context: {qlooContext}
 Feedback: {feedback}
 
-Decide the HIGHEST-leverage chain level to revise. Do not default to visualization.
+Decide the HIGHEST-leverage chain level to revise. Do not default to architecture or visualization.
 
-Levels:
-- evidence: cultural or local facts are wrong or missing
-- opportunity: the whitespace/alignment/destination hypothesis is wrong
-- strategy: commercial direction should change
-- experience: requirements/priority of the experience should change
-- architecture: spatial/material/layout decisions should change while strategy holds
-- visualization: the image failed to represent an otherwise correct concept
+Chain levels — read each description carefully before choosing:
+- evidence: cultural or local facts are wrong, missing, or misrepresented. Use when feedback questions the underlying data, what Qloo found, or what exists nearby.
+- opportunity: the whitespace/alignment/destination hypothesis is wrong. Use when feedback says the gap identified is not real, the market position is wrong, or the type of opportunity is misconceived.
+- strategy: the commercial direction, concept identity, or cultural differentiation argument should change. Use when feedback says the concept is too generic, not culturally distinct enough, feels like something any AI would produce, lacks a clear reason to exist here, or questions why this concept over alternatives. IMPORTANT: if the feedback uses words like "distinct", "differentiated", "why this one", "cultural case", "why here", "what makes this different", "not unique", "generic" — this is almost always a strategy-level concern, not architecture.
+- experience: requirements or priorities of the experience should change while the strategic direction holds. Use when the spatial programme, service model, or audience prioritisation needs adjustment.
+- architecture: spatial, material, or layout decisions should change while strategy and experience hold. Use only when the feedback is explicitly about rooms, materials, circulation, or the physical configuration.
+- visualization: the image failed to represent an otherwise correct concept. Use only when the feedback is specifically about a rendered image.
+
+Decision rule: always choose the highest level that addresses the root of the feedback. A comment about cultural distinctiveness is strategy, not architecture. A comment about a specific room layout is architecture. When in doubt between two levels, choose the higher one.
 
 Return JSON:
 {
   "chainLevel": "evidence|opportunity|strategy|experience|architecture|visualization",
   "diagnosis": "plain explanation of what is wrong and what should change",
-  "guidance": "instructions for the next agent pass"
+  "guidance": "specific instructions for the next agent pass — if strategy level, instruct the agent to strengthen the Qloo cultural differentiation argument and explain why this concept is uniquely suited to this location and audience based on the scored affinities"
 }
 `;
 

@@ -164,34 +164,70 @@ export default function ReviewPage() {
             Revision history
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {[...reviews].reverse().map((rev, i) => (
-              <div key={rev.id ?? i} style={{
-                padding: '1rem 1.25rem',
-                border: '1.5px solid var(--line-2)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--surface-raised)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap', marginBottom: '0.625rem' }}>
-                  <ChainLevelBadge level={rev.chainLevel} />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-2)' }}>
-                    {CHAIN_LEVEL_META[rev.chainLevel]?.desc}
-                  </span>
+            {[...reviews].reverse().map((rev, i) => {
+              const isStrategy = ['evidence', 'opportunity', 'strategy'].includes(rev.chainLevel);
+              const isExperience = rev.chainLevel === 'experience' || rev.chainLevel === 'architecture';
+              return (
+                <div key={rev.id ?? i} style={{
+                  padding: '1rem 1.25rem',
+                  border: '1.5px solid var(--line-2)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface-raised)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap', marginBottom: '0.625rem' }}>
+                    <ChainLevelBadge level={rev.chainLevel} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-2)' }}>
+                      {CHAIN_LEVEL_META[rev.chainLevel]?.desc}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', marginBottom: '0.5rem', fontStyle: 'italic' }}>
+                    &quot;{rev.feedback}&quot;
+                  </p>
+                  {rev.diagnosis && (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
+                      <strong style={{ fontWeight: 600 }}>Diagnosis:</strong> {rev.diagnosis}
+                    </p>
+                  )}
+                  {rev.guidance && (
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', lineHeight: 1.55, marginBottom: '0.75rem' }}>
+                      <strong style={{ fontWeight: 600 }}>Guidance applied:</strong> {rev.guidance}
+                    </p>
+                  )}
+                  {/* Post-revision navigation — tell the user where the change landed */}
+                  {rev.resolved && (
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {isStrategy && (
+                        <Link
+                          href={`/projects/${id}/recommendation`}
+                          className="pg-btn pg-btn-ghost"
+                          style={{ fontSize: '0.8125rem', padding: '0.3rem 0.75rem' }}
+                        >
+                          View updated recommendation →
+                        </Link>
+                      )}
+                      {(isExperience || isStrategy) && (
+                        <Link
+                          href={`/projects/${id}/concept`}
+                          className="pg-btn pg-btn-ghost"
+                          style={{ fontSize: '0.8125rem', padding: '0.3rem 0.75rem' }}
+                        >
+                          View updated spatial translation →
+                        </Link>
+                      )}
+                      {rev.chainLevel === 'visualization' && (
+                        <Link
+                          href={`/projects/${id}/concept`}
+                          className="pg-btn pg-btn-ghost"
+                          style={{ fontSize: '0.8125rem', padding: '0.3rem 0.75rem' }}
+                        >
+                          View updated renders →
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', marginBottom: '0.5rem', fontStyle: 'italic' }}>
-                  &quot;{rev.feedback}&quot;
-                </p>
-                {rev.diagnosis && (
-                  <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: '0.375rem' }}>
-                    <strong style={{ fontWeight: 600 }}>Diagnosis:</strong> {rev.diagnosis}
-                  </p>
-                )}
-                {rev.guidance && (
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', lineHeight: 1.55 }}>
-                    <strong style={{ fontWeight: 600 }}>Guidance applied:</strong> {rev.guidance}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
