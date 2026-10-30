@@ -53,6 +53,14 @@ export default function ProjectPage() {
           <span className="pg-badge pg-badge-neutral">
             {TYPE_LABELS[project.projectType] ?? project.projectType}
           </span>
+          <span className="pg-badge pg-badge-neutral">
+            {project.mode === 'discover' ? 'Discovery mode' : 'Evaluate mode'}
+          </span>
+          {project.mode === 'discover' && project.operatorType && (
+            <span className="pg-badge pg-badge-neutral">
+              {project.operatorType}
+            </span>
+          )}
           {analysis?.intelligenceMode && (
             <span className={`pg-badge pg-badge-${analysis.intelligenceMode}`}>
               {analysis.intelligenceMode} intelligence
@@ -271,10 +279,10 @@ export default function ProjectPage() {
       </section>
 
       <p style={{ marginTop: '2rem', maxWidth: '44rem', fontSize: '0.8125rem', color: 'var(--muted-2)', lineHeight: 1.65 }}>
-        The agent&apos;s objective is not to generate a generic {project.projectType}.
-        It is to develop a culturally and commercially defensible concept for this property
-        and explain why it should exist here. Qloo provides cultural relationships;
-        PlaceGraph decides whether they represent a meaningful opportunity.
+        {project.mode === 'discover'
+          ? 'The agent starts without a proposed concept. It reads the location, audience and cultural evidence, then discovers what kinds of commercial experience could genuinely serve this place.'
+          : `The agent's objective is not to generate a generic ${project.projectType}. It is to develop a culturally and commercially defensible concept for this property and explain why it should exist here.`}{' '}
+        Qloo provides cultural relationships; PlaceGraph decides whether they represent a meaningful opportunity.
       </p>
     </main>
   );

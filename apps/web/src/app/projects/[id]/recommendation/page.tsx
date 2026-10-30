@@ -99,6 +99,7 @@ function WinnerPanel({
   qlooChangedBullets,
   distinctiveness,
   allowConfidentRecommendation,
+  canDiscover,
   onProceed,
   busy,
 }: {
@@ -107,6 +108,7 @@ function WinnerPanel({
   qlooChangedBullets: string[];
   distinctiveness: string | null;
   allowConfidentRecommendation: boolean;
+  canDiscover: boolean;
   onProceed: (id: string) => void;
   busy: boolean;
 }) {
@@ -138,7 +140,9 @@ function WinnerPanel({
         }}>
           {allowConfidentRecommendation
             ? 'Recommended investment direction'
-            : 'Indicative investment direction — evidence quality limited.'}
+            : canDiscover
+              ? 'Exploratory direction — treat as hypothesis, not recommendation.'
+              : 'Indicative investment direction — evidence quality limited.'}
         </span>
         <span className={DIRECTION_BADGE[strategy.direction] ?? 'pg-badge pg-badge-neutral'}>
           {strategy.direction}
@@ -829,6 +833,11 @@ export default function RecommendationPage() {
 
   const { analysis, project } = bundle;
   const strategies = analysis.strategies;
+  const evidenceSummary = analysis.evidenceGate?.evidenceSummary;
+  const canRecommend =
+    evidenceSummary?.canRecommend ?? (analysis.evidenceGate?.allowConfidentRecommendation !== false);
+  const canDiscover = evidenceSummary?.canDiscover ?? true;
+  const canShowDirection = canRecommend || canDiscover;
 
   // The recommended direction is the one with the highest evaluationScore,
   // or the first strategy if scores are absent.
@@ -909,16 +918,111 @@ export default function RecommendationPage() {
         </span>
       </div>
 
+      {/* ── Discovery context heading ── */}
+      {project.mode === 'discover' && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <p style={{
+            fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase',
+            letterSpacing: '0.1em', color: 'var(--muted-2)', marginBottom: '0.375rem'
+          }}>
+            Discovery analysis — no concept was specified
+          </p>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', lineHeight: 1.65, maxWidth: '48rem' }}>
+            Based on the cultural evidence for this location and audience, PlaceGraph identified three investment directions. These are not evaluations of a proposed concept — they are opportunities the cultural evidence suggests deserve consideration.
+          </p>
+        </div>
+      )}
+
+      {/* ── Explicit evidence insufficiency ── */}
+      {evidenceSummary && !evidenceSummary.canRecommend && (
+        <div style={{
+          padding: '1.25rem 1.5rem',
+          border: '1.5px solid var(--assumption)',
+          borderLeft: '4px solid var(--assumption)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--assumption-bg)',
+          marginBottom: '1.5rem',
+        }}>
+          <p style={{
+            fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.1em', color: 'var(--assumption)', marginBottom: '0.5rem',
+          }}>
+            Evidence is not sufficient for a confident recommendation
+          </p>
+          <p style={{ fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.65, marginBottom: '0.875rem' }}>
+            PlaceGraph found cultural signals but cannot form a defensible investment recommendation from the available evidence. The directions below are exploratory, not recommended.
+          </p>
+          {evidenceSummary.missingEvidence.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--assumption)', marginBottom: '0.375rem' }}>
+                What is missing:
+              </p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {evidenceSummary.missingEvidence.map((item, i) => (
+                  <li key={i} style={{
+                    fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6,
+                    paddingLeft: '1rem', position: 'relative', marginBottom: '0.25rem',
+                  }}>
+                    <span style={{ position: 'absolute', left: 0, color: 'var(--assumption)' }}>·</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {evidenceSummary.whatWouldResolveIt.length > 0 && (
+            <div>
+              <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--assumption)', marginBottom: '0.375rem' }}>
+                What would resolve it:
+              </p>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {evidenceSummary.whatWouldResolveIt.map((item, i) => (
+                  <li key={i} style={{
+                    fontSize: '0.8125rem', color: 'var(--ink-2)', lineHeight: 1.6,
+                    paddingLeft: '1rem', position: 'relative', marginBottom: '0.25rem',
+                  }}>
+                    <span style={{ position: 'absolute', left: 0, color: 'var(--muted)' }}>→</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Winner panel (above the fold) ── */}
-      <WinnerPanel
-        strategy={designedStrategy}
-        qlooThesis={qlooThesis}
-        qlooChangedBullets={qlooChangedBullets}
-        distinctiveness={distinctiveness}
-        allowConfidentRecommendation={analysis.evidenceGate?.allowConfidentRecommendation !== false}
-        onProceed={proceed}
-        busy={streaming}
-      />
+      {canShowDirection ? (
+        <WinnerPanel
+          strategy={designedStrategy}
+          qlooThesis={qlooThesis}
+          qlooChangedBullets={qlooChangedBullets}
+          distinctiveness={distinctiveness}
+          allowConfidentRecommendation={canRecommend}
+          canDiscover={canDiscover}
+          onProceed={proceed}
+          busy={streaming}
+        />
+      ) : (
+        <div style={{
+          padding: '1.25rem 1.5rem',
+          border: '1.5px solid var(--assumption)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--assumption-bg)',
+        }}>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', lineHeight: 1.65, marginBottom: '0.875rem' }}>
+            Run the analysis again after improving the audience descriptions or location detail.
+          </p>
+          <button
+            type="button"
+            onClick={() => start()}
+            disabled={streaming}
+            className="pg-btn pg-btn-ghost"
+          >
+            {streaming ? 'Running…' : 'Re-run analysis'}
+          </button>
+        </div>
+      )}
 
       {/* ── Streaming progress ── */}
       {(streaming || events.length > 0 || streamError) && (
@@ -944,10 +1048,10 @@ export default function RecommendationPage() {
       <Divider />
 
       {/* ── Progressive disclosure: alternatives ── */}
-      {alternatives.length > 0 && (
+      {canShowDirection && alternatives.length > 0 && (
         <section style={{ marginBottom: '0.5rem' }}>
           <SectionToggle
-            label="Alternative investment directions"
+            label={project.mode === 'discover' ? 'Other discovered directions' : 'Alternative investment directions'}
             open={altOpen}
             onToggle={() => setAltOpen((o) => !o)}
             count={alternatives.length}

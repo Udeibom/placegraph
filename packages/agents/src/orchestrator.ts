@@ -485,6 +485,7 @@ export class AgentOrchestrator {
 
   async analyze(input: OrchestratorInput, onProgress?: ProgressFn): Promise<AnalysisSnapshot> {
     const runId = generateId('run');
+    const isDiscoverMode = input.project.mode === 'discover';
     const prov = new ProvenanceBuilder();
     const root = prov.create('inference', 'Cultural intelligence analysis started', { parentId: null });
     prov.setRoot(root.id);
@@ -503,7 +504,8 @@ export class AgentOrchestrator {
     const gate = buildEvidenceGate({
       llmAvailable: this.llm.available,
       location: locationContext,
-      qloo: qlooContext
+      qloo: qlooContext,
+      project: input.project
     });
 
     // Keep prompts within the Groq free-tier token budget (8k TPM per model).
@@ -583,6 +585,10 @@ export class AgentOrchestrator {
     onProgress?.('opportunity', 'Forming opportunity hypotheses…');
     const oppFallback = fallbackOpportunities(input.project, runId, snapshot);
     const oppPrompt = replaceVars(OPPORTUNITY_ANALYSIS_PROMPT, {
+      mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
+      operatorContext: isDiscoverMode && input.project.operatorType
+        ? `Operator type: ${input.project.operatorType}. Tailor opportunity types to decisions this type of operator actually makes.`
+        : '',
       project: input.project,
       landscapes: compactPromptLandscapes(snapshot.landscapes),
       audienceAnalysis: snapshot.audienceAnalysis,
@@ -604,6 +610,7 @@ export class AgentOrchestrator {
     onProgress?.('strategy', 'Drafting distinct strategic directions…');
     const stratFallback = fallbackStrategies(input.project, runId, snapshot.opportunities, qlooContext);
     const stratPrompt = replaceVars(STRATEGY_GENERATION_PROMPT, {
+      mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
       project: input.project,
       opportunities: compactPromptOpportunities(snapshot.opportunities),
       landscapes: compactPromptLandscapes(snapshot.landscapes),

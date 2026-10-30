@@ -7,7 +7,9 @@ export const SAMPLE_PROJECT: Omit<Project, 'id' | 'status' | 'createdAt' | 'upda
     city: 'London',
     neighborhood: 'Clerkenwell'
   },
+  mode: 'evaluate',
   projectType: 'restaurant',
+  businessType: 'destination restaurant',
   objective:
     'Create a destination restaurant that can attract a design-aware dining audience from across London while remaining appropriate to Clerkenwell’s existing food culture — not a generic upscale fit-out, and not an entertainment venue.',
   budgetRange: '£800k–1.2M',

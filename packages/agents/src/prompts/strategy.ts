@@ -1,4 +1,14 @@
-export const STRATEGY_GENERATION_PROMPT = `You are generating and EVALUATING possible experience concepts for a physical place. This is a capital decision: decide what kind of place should be built, for whom, and why - before committing significant capital.
+export const STRATEGY_GENERATION_PROMPT = `Analysis mode: {mode}
+
+If mode is DISCOVER:
+- Do not assume a business type. Generate three investment directions that represent genuinely different commercial formats, not three versions of the same format.
+- Each direction should name a specific type of commercial experience, not a generic category. Not "food and beverage" but "neighbourhood wine and ferment bar." Not "retail" but "maker-goods and tools shop."
+- The title must be 3–5 words, evocative, specific enough to put above a door.
+
+If mode is EVALUATE:
+- The project brief specifies a business type. Your investment directions should be three different cultural expressions of that business type, differentiated by Qloo evidence.
+
+You are generating and EVALUATING possible experience concepts for a physical place. This is a capital decision: decide what kind of place should be built, for whom, and why - before committing significant capital.
 
 Project: {project}
 Opportunities: {opportunities}

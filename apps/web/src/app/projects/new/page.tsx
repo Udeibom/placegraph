@@ -16,6 +16,13 @@ const PROJECT_TYPES = [
   { value: 'other',       label: 'Other',        icon: '🏗️' },
 ];
 
+const OPERATOR_TYPES = [
+  { value: 'developer',   label: 'Developer' },
+  { value: 'hospitality', label: 'Hospitality group' },
+  { value: 'retail',      label: 'Retail brand' },
+  { value: 'operator',    label: 'Operator' },
+] as const;
+
 const PRIORITY_LABELS = ['Primary', 'Secondary', 'Tertiary'];
 
 const emptyAudience  = { name: '', description: '', priority: 1 as number };
@@ -45,6 +52,8 @@ export default function NewProject() {
   const [form, setForm] = useState({
     name:            '',
     location:        { address: '', city: '', neighborhood: '' },
+    mode:            'evaluate' as 'evaluate' | 'discover',
+    operatorType:    '' as '' | 'developer' | 'hospitality' | 'retail' | 'operator',
     projectType:     'restaurant',
     businessType:    '',
     objective:       '',
@@ -78,8 +87,12 @@ export default function NewProject() {
     try {
       const project = await createProject({
         ...form,
-        audiences:   form.audiences.filter((a) => a.name.trim()),
-        constraints: form.constraints.filter((c) => c.key.trim() && c.value.trim()),
+        mode:         form.mode,
+        projectType:  form.mode === 'discover' ? 'other' : form.projectType,
+        businessType: form.mode === 'discover' ? '' : form.businessType,
+        operatorType: form.mode === 'discover' && form.operatorType ? form.operatorType : undefined,
+        audiences:    form.audiences.filter((a) => a.name.trim()),
+        constraints:  form.constraints.filter((c) => c.key.trim() && c.value.trim()),
       } as Parameters<typeof createProject>[0]);
       router.push(`/projects/${project.id}`);
     } catch (e) {
@@ -91,7 +104,8 @@ export default function NewProject() {
 
   const steps = ['Place & business', 'Target audience', 'Objective & intent', 'Constraints'];
   const canAdvance = [
-    form.name.trim() && form.location.city.trim() && (form.businessType.trim() || form.projectType),
+    form.name.trim() && form.location.city.trim() &&
+      (form.mode === 'discover' || form.businessType.trim() || form.projectType),
     form.targetAudience.trim() || form.audiences.some((a) => a.name.trim()),
     form.objective.trim(),
     true,
@@ -145,39 +159,131 @@ export default function NewProject() {
         {/* Step 0 — Place & business */}
         {step === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'pg-slide-up var(--duration-slow) var(--ease-out) both' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--ink-2)' }}>Analysis mode *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                {([
+                  {
+                    value: 'evaluate' as const,
+                    title: 'Evaluate a concept',
+                    body: 'I have a business type in mind. Help me understand whether it fits this place and audience.',
+                    note: '',
+                  },
+                  {
+                    value: 'discover' as const,
+                    title: 'Discover an opportunity',
+                    body: 'I have a location and audience. Help me find what should exist here.',
+                    note: 'Business type is not required.',
+                  },
+                ]).map((option) => {
+                  const active = form.mode === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => update('mode', option.value)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.375rem',
+                        padding: '1rem', textAlign: 'left',
+                        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--accent-light)' : 'var(--surface-raised)',
+                        cursor: 'pointer', transition: 'all var(--duration-fast) var(--ease)',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: active ? 'var(--accent-2)' : 'var(--ink)' }}>
+                        {option.title}
+                      </span>
+                      <span style={{ fontSize: '0.8125rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+                        {option.body}
+                      </span>
+                      {option.note && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-2)', marginTop: 'auto', paddingTop: '0.375rem' }}>
+                          {option.note}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <Field label="Project name" hint="A working name for this brief">
               <input className="pg-input" value={form.name} placeholder="e.g. Warehouse unit, Clerkenwell"
                 onChange={(e) => update('name', e.target.value)} />
             </Field>
 
-            <Field label="Business type *" hint="What type of business/experience are you considering (or want to discover)">
-              <input className="pg-input" value={form.businessType} placeholder="e.g. neighborhood wine bar, all-day cafe, community gym"
-                onChange={(e) => update('businessType', e.target.value)} />
-            </Field>
+            {form.mode === 'evaluate' && (
+              <>
+                <Field label="Business type *" hint="What type of business/experience are you considering (or want to discover)">
+                  <input className="pg-input" value={form.businessType} placeholder="e.g. neighborhood wine bar, all-day cafe, community gym"
+                    onChange={(e) => update('businessType', e.target.value)} />
+                </Field>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--ink-2)' }}>Project category (optional)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem' }}>
-                {PROJECT_TYPES.map((t) => (
-                  <button
-                    key={t.value} type="button"
-                    onClick={() => update('projectType', t.value)}
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      gap: '0.25rem', padding: '0.75rem 0.5rem',
-                      border: `1.5px solid ${form.projectType === t.value ? 'var(--accent)' : 'var(--line)'}`,
-                      borderRadius: 'var(--radius-md)', background: form.projectType === t.value ? 'var(--accent-light)' : 'var(--surface-raised)',
-                      cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.04em',
-                      color: form.projectType === t.value ? 'var(--accent-2)' : 'var(--muted)',
-                      transition: 'all var(--duration-fast) var(--ease)',
-                    }}
-                  >
-                    <span style={{ fontSize: '1.25rem' }}>{t.icon}</span>
-                    {t.label}
-                  </button>
-                ))}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', color: 'var(--ink-2)' }}>Project category (optional)</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem' }}>
+                    {PROJECT_TYPES.map((t) => (
+                      <button
+                        key={t.value} type="button"
+                        onClick={() => update('projectType', t.value)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: '0.25rem', padding: '0.75rem 0.5rem',
+                          border: `1.5px solid ${form.projectType === t.value ? 'var(--accent)' : 'var(--line)'}`,
+                          borderRadius: 'var(--radius-md)', background: form.projectType === t.value ? 'var(--accent-light)' : 'var(--surface-raised)',
+                          cursor: 'pointer', fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.04em',
+                          color: form.projectType === t.value ? 'var(--accent-2)' : 'var(--muted)',
+                          transition: 'all var(--duration-fast) var(--ease)',
+                        }}
+                      >
+                        <span style={{ fontSize: '1.25rem' }}>{t.icon}</span>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {form.mode === 'discover' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem', color: 'var(--ink-2)' }}>
+                  What kind of operator are you? (optional)
+                </label>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+                  Tailors discovered opportunities to the decisions this type of operator actually makes.
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  {OPERATOR_TYPES.map((operator) => {
+                    const active = form.operatorType === operator.value;
+                    return (
+                      <label
+                        key={operator.value}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.625rem',
+                          padding: '0.625rem 0.875rem', cursor: 'pointer',
+                          border: `1.5px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+                          borderRadius: 'var(--radius)', background: active ? 'var(--accent-light)' : 'var(--surface-raised)',
+                          transition: 'all var(--duration-fast) var(--ease)',
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="operatorType"
+                          value={operator.value}
+                          checked={active}
+                          onChange={() => update('operatorType', operator.value)}
+                        />
+                        <span style={{ fontSize: '0.875rem', color: active ? 'var(--accent-2)' : 'var(--ink-2)' }}>
+                          {operator.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             <Field label="Street address">
               <input className="pg-input" value={form.location.address}

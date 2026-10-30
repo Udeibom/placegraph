@@ -35,8 +35,12 @@ export async function POST(req: NextRequest) {
         lat: body.location?.lat,
         lng: body.location?.lng
       },
-      projectType: body.projectType || 'restaurant',
-      businessType: body.businessType || body.projectType || undefined,
+      mode: body.mode === 'discover' ? 'discover' : 'evaluate',
+      projectType: body.projectType || 'other',
+      businessType: body.businessType || body.projectType || '',
+      operatorType: ['developer', 'hospitality', 'retail', 'operator'].includes(body.operatorType)
+        ? body.operatorType
+        : undefined,
       objective: body.objective || '',
       investmentIntent: body.investmentIntent || undefined,
       budgetRange: body.budgetRange,

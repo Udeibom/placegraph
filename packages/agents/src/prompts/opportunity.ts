@@ -1,4 +1,18 @@
-export const OPPORTUNITY_ANALYSIS_PROMPT = `You are analyzing cultural opportunities for a commercial space project.
+export const OPPORTUNITY_ANALYSIS_PROMPT = `Analysis mode: {mode}
+
+{operatorContext}
+
+IMPORTANT — this affects how you identify opportunities:
+
+If mode is EVALUATE:
+- The project brief already specifies a business type. Your job is to assess whether that concept fits this location and audience, identify what cultural evidence supports or undermines it, and identify what adjacent opportunities the cultural evidence suggests.
+
+If mode is DISCOVER:
+- There is no proposed concept. Your job is to look at the cultural evidence, the local commercial environment, and the audience profile, and discover what types of commercial experience could genuinely serve this audience in this place. Do not default to the most obvious category. Look for what the cultural evidence reveals that is not already well-served nearby.
+- Generate three genuinely different opportunity types. They should be different in nature, not just variations of the same category.
+- For each opportunity, explicitly state: what cultural evidence supports it, which audience segment it primarily serves, why it fits this specific location, and what is currently absent that makes it viable.
+
+You are analyzing cultural opportunities for a commercial space project.
 
 Project:
 {project}

@@ -188,7 +188,13 @@ export const EvidenceGateSchema = z.object({
   llmAvailable: z.boolean(),
   intelligenceMode: z.enum(['live', 'mixed', 'template']),
   allowConfidentRecommendation: z.boolean(),
-  warnings: z.array(z.string()).default([])
+  warnings: z.array(z.string()).default([]),
+  evidenceSummary: z.object({
+    canRecommend: z.boolean(),
+    canDiscover: z.boolean(),
+    missingEvidence: z.array(z.string()).default([]),
+    whatWouldResolveIt: z.array(z.string()).default([]),
+  }).optional(),
 });
 
 export const JobProgressSchema = z.object({

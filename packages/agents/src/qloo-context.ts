@@ -102,11 +102,11 @@ export async function gatherQlooContext(
     }
   }
 
-  // 3. Per-audience: choose a locally relevant seed, then query place
-  //    affinities. If no local audience match exists, use the local anchor
-  //    rather than an unrelated global search hit.
+  // 3. Per-audience: generate multiple search queries, collect usable seed
+  //    entities, then intersect their place affinities. A single entity is a
+  //    thin proxy for an audience; multiple seeds reveal what is consistent
+  //    across cultural contexts.
   const audienceAffinities: Record<string, QlooAffinity[]> = {};
-  const audienceSeedNames: string[] = [];
   const allEntities: QlooEntity[]  = [];
   const allAffinities: QlooAffinity[] = [];
   const notes: string[] = ['Live Qloo queries were run per audience. Scores are cultural relationships, not demand.'];
@@ -132,47 +132,45 @@ export async function gatherQlooContext(
   const audienceResults = await Promise.all(
     project.audiences.map(async (aud) => {
       try {
-        const searchRes = await client.searchEntities(aud.name, { limit: 10 });
-        const tokens = audienceTokens(aud.name, [city, project.location.neighborhood]);
-        const usableResults = searchRes.filter((e) => isUsableSeed(e));
-        const usableSeed =
-          usableResults.find(
-            (e) => e.id && sameCity(e.city, city) && nameMatches(e.name, tokens)
-          ) || usableResults.find((e) => e.id);
-        if (!usableSeed) {
-          notes.push(
-            `Audience "${aud.name}": no locally-relevant Qloo entity found. Falling back to location anchor.`
-          );
-        }
-        const seed = usableSeed || anchor;
-        if (!seed?.id) {
-          return { audienceName: aud.name, seedName: '', entities: searchRes, affinities: [] as QlooAffinity[] };
-        }
+        const queries = unique([
+          aud.name,
+          aud.description
+            ? aud.description.trim().split(/\s+/).slice(0, 4).join(' ')
+            : undefined,
+          `${aud.name} ${project.location.neighborhood || project.location.city || ''}`.trim()
+        ]);
 
-        let affs = (locationResolved
-          ? await client.getAffinities(seed, {
-              location: resolvedLocation,
-              limit: 15,
-              domains: ['urn:entity:place']
-            })
-          : []).filter(isUsableAffinity);
+        const candidateBatches = await Promise.all(
+          queries.map((query) => client.searchEntities(query, { limit: 3 }))
+        );
+        const candidates = uniqueById(candidateBatches.flat())
+          .filter((entity) => entity.id && isUsableSeed(entity))
+          .slice(0, 3);
 
-        // If an audience-specific seed produced nothing, fall back to the
-        // place anchor instead of silently reporting an empty profile.
-        if (!affs.length && anchor?.id && seed.id !== anchor.id && locationResolved) {
-          affs = anchorAffinities;
+        const affinityBatches: QlooAffinity[][] = [];
+        if (locationResolved) {
+          for (const seed of candidates) {
+            const affs = await client
+              .getAffinities(seed, {
+                location: resolvedLocation,
+                limit: 15,
+                domains: ['urn:entity:place']
+              })
+              .catch(() => []);
+            affinityBatches.push(affs.filter(isUsableAffinity));
+          }
         }
 
         return {
           audienceName: aud.name,
-          seedName: seed.name,
-          entities: searchRes,
-          affinities: affs
+          seedNames: candidates.map((seed) => seed.name),
+          entities: candidateBatches.flat(),
+          affinities: buildAudienceAffinityPool(affinityBatches)
         };
       } catch {
         return {
           audienceName: aud.name,
-          seedName: '',
+          seedNames: [] as string[],
           entities: [] as QlooEntity[],
           affinities: [] as QlooAffinity[]
         };
@@ -180,11 +178,36 @@ export async function gatherQlooContext(
     })
   );
 
+  let strongProfiles = 0;
+  let approximateProfiles = 0;
+  let unresolvedProfiles = 0;
+
   for (const result of audienceResults) {
     audienceAffinities[result.audienceName] = result.affinities;
-    if (result.seedName) audienceSeedNames.push(`${result.audienceName} → ${result.seedName}`);
+    if (result.seedNames.length >= 2) {
+      strongProfiles += 1;
+      notes.push(
+        `Audience "${result.audienceName}": resolved from ${result.seedNames.length} seed entities (${result.seedNames.join(', ')}). Affinities reflect intersection of ${result.seedNames.length === 2 ? 'both' : 'all'} profiles.`
+      );
+    } else if (result.seedNames.length === 1) {
+      approximateProfiles += 1;
+      notes.push(
+        `Audience "${result.audienceName}": resolved from 1 seed entity (${result.seedNames[0]}). Single-seed profile — treat as approximate.`
+      );
+    } else {
+      unresolvedProfiles += 1;
+      notes.push(
+        `Audience "${result.audienceName}": no locally-relevant seed found. Audience profile omitted from cultural evidence.`
+      );
+    }
     allEntities.push(...result.entities);
     allAffinities.push(...result.affinities);
+  }
+
+  if (project.audiences.length) {
+    notes.push(
+      `Audience profiling: ${project.audiences.length} audiences, ${strongProfiles} resolved with multiple seeds (strong), ${approximateProfiles} resolved with single seed (approximate), ${unresolvedProfiles} unresolved.`
+    );
   }
 
   // 4. Location-level and project-type entity matches. These are context only,
@@ -214,9 +237,6 @@ export async function gatherQlooContext(
     notes.push(
       'Qloo could not resolve a location filter for this project; affinity evidence is global rather than local.'
     );
-  }
-  if (audienceSeedNames.length) {
-    notes.push(`Audience seeds: ${audienceSeedNames.join('; ')}.`);
   }
   if (entities.length && !affinities.length) {
     notes.push(
@@ -287,6 +307,41 @@ function isUsableAffinity(affinity: QlooAffinity): boolean {
   return isUsableSeed({ name: affinity.target, type: affinity.domain });
 }
 
+function buildAudienceAffinityPool(
+  affinityBatches: QlooAffinity[][]
+): QlooAffinity[] {
+  const scores = new Map<string, { affinity: QlooAffinity; count: number; totalStrength: number }>();
+
+  for (const batch of affinityBatches) {
+    for (const aff of batch) {
+      if (!aff?.target || typeof aff.strength !== 'number') continue;
+      const key = aff.target.toLowerCase();
+      const existing = scores.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.totalStrength += aff.strength;
+      } else {
+        scores.set(key, { affinity: aff, count: 1, totalStrength: aff.strength });
+      }
+    }
+  }
+
+  return [...scores.values()]
+    .sort((a, b) => {
+      // Prioritise entities that appear across multiple seeds — these are
+      // the culturally consistent signals, not single-seed noise
+      if (b.count !== a.count) return b.count - a.count;
+      return b.totalStrength - a.totalStrength;
+    })
+    .map((entry) => ({
+      ...entry.affinity,
+      // Boost strength for entities that appeared in multiple seed queries
+      strength: entry.count > 1
+        ? Math.min(1, entry.affinity.strength * (1 + (entry.count - 1) * 0.05))
+        : entry.affinity.strength,
+    }));
+}
+
 function filterCrossDomain(crossDomain: any): any {
   if (!crossDomain || !crossDomain.results || Array.isArray(crossDomain.results)) {
     return crossDomain;
@@ -309,30 +364,6 @@ function unique(items: Array<string | undefined>): string[] {
 
 function sameCity(a?: string, b?: string): boolean {
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
-}
-
-const AUDIENCE_STOPWORDS = new Set([
-  'and', 'the', 'from', 'across', 'with', 'for', 'into', 'people', 'local',
-  'visitors', 'researchers', 'professionals', 'residents', 'workers', 'aware',
-  'postgraduate', 'their', 'this', 'that', 'who', 'are', 'nearby', 'area'
-]);
-
-function audienceTokens(name: string, ignored: Array<string | undefined> = []): string[] {
-  const ignore = new Set(
-    ignored.flatMap((value) => (value || '').toLowerCase().split(/[^a-z0-9]+/)).filter(Boolean)
-  );
-  return [...new Set(
-    name
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((token) => token.length > 2 && !AUDIENCE_STOPWORDS.has(token) && !ignore.has(token))
-  )];
-}
-
-function nameMatches(name: string, tokens: string[]): boolean {
-  if (!tokens.length) return false;
-  const haystack = name.toLowerCase();
-  return tokens.some((token) => haystack.includes(token));
 }
 
 function locationCandidates(project: Project, context?: LocationContext): Array<string | undefined> {
