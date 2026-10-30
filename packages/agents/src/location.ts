@@ -124,6 +124,16 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
     }
   }
 
+  const barCount = pois.filter((p) =>
+    ['bar', 'pub', 'wine_bar', 'nightclub'].includes(p.category ?? '')
+  ).length;
+
+  if (barCount === 0) {
+    notes.push(
+      'No bars or pubs found in POI results. This may reflect OSM data coverage, not actual absence. Do not assert that no bars exist nearby without verification.'
+    );
+  }
+
   const evidenceQuality =
     pois.length >= 8 ? 'strong' : pois.length >= 3 || displayName ? 'moderate' : 'insufficient';
 
@@ -142,10 +152,11 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
 async function nearbyPois(lat: number, lng: number, projectType: string): Promise<PlacePoi[]> {
   const amenity =
     projectType === 'hotel'
-      ? 'hotel|restaurant|cafe|bar'
+      ? 'hotel|restaurant|cafe|bar|pub|wine_bar|nightclub'
       : projectType === 'retail'
-        ? 'shop|cafe|restaurant|marketplace'
-        : 'restaurant|cafe|bar|pub|fast_food|hotel';
+        ? 'shop|cafe|restaurant|marketplace|bar|pub|wine_bar|nightclub'
+        : 'restaurant|cafe|bar|pub|wine_bar|nightclub|fast_food|hotel';
+  const shop = 'wine|alcohol|deli';
 
   const query = `
     [out:json][timeout:20];
@@ -153,6 +164,7 @@ async function nearbyPois(lat: number, lng: number, projectType: string): Promis
       node["amenity"~"${amenity}"](around:700,${lat},${lng});
       way["amenity"~"${amenity}"](around:700,${lat},${lng});
       node["shop"](around:500,${lat},${lng});
+      way["shop"~"${shop}"](around:500,${lat},${lng});
     );
     out center 50;
   `;
@@ -207,10 +219,10 @@ async function nearbyPois(lat: number, lng: number, projectType: string): Promis
 async function nominatimPois(lat: number, lng: number, projectType: string): Promise<PlacePoi[]> {
   const categories =
     projectType === 'hotel'
-      ? ['cafe', 'restaurant', 'bar']
+      ? ['cafe', 'restaurant', 'bar', 'pub', 'wine_bar']
       : projectType === 'retail'
-        ? ['cafe', 'restaurant', 'shop']
-        : ['cafe', 'restaurant'];
+        ? ['cafe', 'restaurant', 'shop', 'wine', 'alcohol', 'deli']
+        : ['cafe', 'restaurant', 'bar', 'pub', 'wine_bar', 'wine'];
 
   const delta = 0.009;
   const viewbox = `${lng - delta},${lat + delta},${lng + delta},${lat - delta}`;

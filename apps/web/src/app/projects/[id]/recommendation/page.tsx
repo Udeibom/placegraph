@@ -98,6 +98,7 @@ function WinnerPanel({
   qlooThesis,
   qlooChangedBullets,
   distinctiveness,
+  allowConfidentRecommendation,
   onProceed,
   busy,
 }: {
@@ -105,10 +106,14 @@ function WinnerPanel({
   qlooThesis: string;
   qlooChangedBullets: string[];
   distinctiveness: string | null;
+  allowConfidentRecommendation: boolean;
   onProceed: (id: string) => void;
   busy: boolean;
 }) {
   const accentColor = DIRECTION_COLOR[strategy.direction] ?? 'var(--accent)';
+  const constraintConflicts = (strategy.assumptions ?? []).filter((a) =>
+    a.startsWith('CONSTRAINT CONFLICT:')
+  );
 
   return (
     <div style={{
@@ -131,12 +136,14 @@ function WinnerPanel({
           fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase',
           letterSpacing: '0.1em', color: accentColor,
         }}>
-          Recommended investment direction
+          {allowConfidentRecommendation
+            ? 'Recommended investment direction'
+            : 'Indicative investment direction — evidence quality limited.'}
         </span>
         <span className={DIRECTION_BADGE[strategy.direction] ?? 'pg-badge pg-badge-neutral'}>
           {strategy.direction}
         </span>
-        {typeof strategy.evaluationScore === 'number' && (
+        {allowConfidentRecommendation && typeof strategy.evaluationScore === 'number' && (
           <span style={{
             marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600,
             color: accentColor, opacity: 0.9,
@@ -207,6 +214,36 @@ function WinnerPanel({
             </ul>
           )}
         </div>
+
+        {/* Constraint conflicts — hard blockers surfaced before the user proceeds */}
+        {constraintConflicts.length > 0 && (
+          <div style={{
+            padding: '0.875rem 1rem',
+            background: 'var(--error-bg)',
+            border: '1px solid var(--error-color)',
+            borderLeft: '4px solid var(--error-color)',
+            borderRadius: 'var(--radius)',
+            marginBottom: '1.5rem',
+          }}>
+            <p style={{
+              fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.1em', color: 'var(--error-color)', marginBottom: '0.5rem',
+            }}>
+              Conflicts with your stated constraints
+            </p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              {constraintConflicts.map((conflict, i) => (
+                <li key={i} style={{
+                  fontSize: '0.875rem', color: 'var(--ink-2)', lineHeight: 1.6,
+                  paddingLeft: '1.125rem', position: 'relative',
+                }}>
+                  <span style={{ position: 'absolute', left: 0, color: 'var(--error-color)', fontWeight: 700 }}>!</span>
+                  {conflict.replace(/^CONSTRAINT CONFLICT:\s*/, '')}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Cultural distinctiveness — why this is impossible without Qloo */}
         {distinctiveness && (
@@ -878,6 +915,7 @@ export default function RecommendationPage() {
         qlooThesis={qlooThesis}
         qlooChangedBullets={qlooChangedBullets}
         distinctiveness={distinctiveness}
+        allowConfidentRecommendation={analysis.evidenceGate?.allowConfidentRecommendation !== false}
         onProceed={proceed}
         busy={streaming}
       />

@@ -109,45 +109,53 @@ export async function gatherQlooContext(
   const audienceSeedNames: string[] = [];
   const allEntities: QlooEntity[]  = [];
   const allAffinities: QlooAffinity[] = [];
+  const notes: string[] = ['Live Qloo queries were run per audience. Scores are cultural relationships, not demand.'];
 
-  const anchorAffinities = anchor?.id && locationResolved
+  const anchorAffinities = (anchor?.id && locationResolved
     ? await client.getAffinities(anchor, {
         location: resolvedLocation,
         limit: 15,
         domains: ['urn:entity:place']
       })
-    : [];
+    : []).filter(isUsableAffinity);
 
   // Fetch cross-domain affinities (brand, artist, film) for the anchor.
   // These reveal the broader taste profile: what brands, musicians, and films
   // resonate with people who frequent this location cluster.
-  const anchorCrossDomainAffinities: QlooAffinity[] = anchor?.id
+  const anchorCrossDomainAffinities: QlooAffinity[] = (anchor?.id
     ? await client.getAffinities(anchor, {
         limit: 10,
         domains: ['urn:entity:brand', 'urn:entity:artist', 'urn:entity:film']
       }).catch(() => [])
-    : [];
+    : []).filter(isUsableAffinity);
 
   const audienceResults = await Promise.all(
     project.audiences.map(async (aud) => {
       try {
         const searchRes = await client.searchEntities(aud.name, { limit: 10 });
         const tokens = audienceTokens(aud.name, [city, project.location.neighborhood]);
-        const localMatch = searchRes.find(
-          (e) => e.id && sameCity(e.city, city) && nameMatches(e.name, tokens)
-        );
-        const seed = localMatch || anchor;
+        const usableResults = searchRes.filter((e) => isUsableSeed(e));
+        const usableSeed =
+          usableResults.find(
+            (e) => e.id && sameCity(e.city, city) && nameMatches(e.name, tokens)
+          ) || usableResults.find((e) => e.id);
+        if (!usableSeed) {
+          notes.push(
+            `Audience "${aud.name}": no locally-relevant Qloo entity found. Falling back to location anchor.`
+          );
+        }
+        const seed = usableSeed || anchor;
         if (!seed?.id) {
           return { audienceName: aud.name, seedName: '', entities: searchRes, affinities: [] as QlooAffinity[] };
         }
 
-        let affs = locationResolved
+        let affs = (locationResolved
           ? await client.getAffinities(seed, {
               location: resolvedLocation,
               limit: 15,
               domains: ['urn:entity:place']
             })
-          : [];
+          : []).filter(isUsableAffinity);
 
         // If an audience-specific seed produced nothing, fall back to the
         // place anchor instead of silently reporting an empty profile.
@@ -188,17 +196,17 @@ export async function gatherQlooContext(
   allEntities.push(...locEntities, ...typeEntities);
 
   // 5. Cross-domain relationships, only where Qloo returns a scored affinity.
-  const crossDomain = locationResolved
+  const rawCrossDomain = locationResolved
     ? await client.getCrossDomain({
         entities: unique([anchor?.name || loc, project.projectType]),
         audiences: project.audiences.map((a) => a.name),
         location: resolvedLocation
       }).catch(() => null)
     : null;
+  const crossDomain = filterCrossDomain(rawCrossDomain);
 
   const entities   = uniqueById(allEntities);
   const affinities = dedupeAffinities([...anchorAffinities, ...anchorCrossDomainAffinities, ...allAffinities]);
-  const notes: string[] = ['Live Qloo queries were run per audience. Scores are cultural relationships, not demand.'];
 
   if (locationResolved) {
     notes.push(`Qloo location resolved as "${resolvedLocation}".`);
@@ -241,6 +249,59 @@ export async function gatherQlooContext(
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
+
+function isUsableSeed(entity: { name: string; type?: string; domain?: string }): boolean {
+  const name = entity.name.toLowerCase();
+
+  // Reject major tourist landmarks — they represent tourism patterns not local culture
+  const LANDMARK_REJECT = [
+    'london eye', 'big ben', 'tower bridge', 'buckingham palace',
+    'westminster abbey', 'trafalgar square', 'st paul', 'tate modern',
+    'natural history museum', 'british museum', 'victoria and albert',
+    'madame tussauds', 'the shard', 'hyde park', 'regent street',
+    'oxford street', 'covent garden', 'piccadilly', 'carnaby',
+    'sky garden', 'the o2', 'wembley', 'emirates stadium',
+    'eiffel tower', 'louvre', 'times square', 'central park',
+    'colosseum', 'sagrada familia',
+  ];
+  if (LANDMARK_REJECT.some((landmark) => name.includes(landmark))) return false;
+
+  // Reject online-only / national brands — they have no geographic cultural specificity
+  const ONLINE_BRAND_REJECT = [
+    'wowcher', 'thortful', 'matalan', 'very.co', 'very ', 'sykes',
+    'not on the high street', 'notonthehighstreet', 'boux avenue',
+    'hotel chocolat', 'moonpig', 'funky pigeon', 'prezzy box',
+    'groupon', 'lastminute', 'trivago', 'booking.com', 'expedia',
+    'amazon', 'ebay', 'etsy', 'asos', 'boohoo', 'prettylittlething',
+  ];
+  if (ONLINE_BRAND_REJECT.some((brand) => name.includes(brand))) return false;
+
+  // Reject entities whose type is clearly national/global rather than local
+  const type = (entity.type || '').toLowerCase();
+  if (type.includes('country') || type.includes('nation') || type.includes('airport')) return false;
+
+  return true;
+}
+
+function isUsableAffinity(affinity: QlooAffinity): boolean {
+  return isUsableSeed({ name: affinity.target, type: affinity.domain });
+}
+
+function filterCrossDomain(crossDomain: any): any {
+  if (!crossDomain || !crossDomain.results || Array.isArray(crossDomain.results)) {
+    return crossDomain;
+  }
+  const results = crossDomain.results;
+  return {
+    ...crossDomain,
+    results: {
+      ...results,
+      places: (results.places || []).filter(isUsableAffinity),
+      brands: (results.brands || []).filter(isUsableAffinity),
+      artists: (results.artists || []).filter(isUsableAffinity)
+    }
+  };
+}
 
 function unique(items: Array<string | undefined>): string[] {
   return [...new Set(items.map((s) => s?.trim()).filter((s): s is string => Boolean(s)))];

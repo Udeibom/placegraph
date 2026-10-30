@@ -57,7 +57,7 @@ export function buildEvidenceGate(opts: {
     qlooQuality !== 'insufficient' &&
     mode !== 'template';
 
-  return {
+  const gate: EvidenceGate = {
     locationQuality,
     qlooQuality,
     llmAvailable: opts.llmAvailable,
@@ -65,6 +65,41 @@ export function buildEvidenceGate(opts: {
     allowConfidentRecommendation,
     warnings: [...new Set(warnings)]
   };
+
+  // Count how many fallback notes were added during Qloo context gathering
+  const seedFallbackCount = (opts.qloo?.notes ?? [])
+    .filter((n: string) => n.includes('Falling back to location anchor')).length;
+
+  const locationIsCityLevel = !!(
+    opts.qloo?.notes?.some((n: string) =>
+      n.toLowerCase().includes('resolved as') &&
+      (n.toLowerCase().includes('united kingdom') ||
+       n.toLowerCase().includes('united states') ||
+       n.toLowerCase().includes('germany') ||
+       n.toLowerCase().includes('france'))
+    )
+  );
+
+  const audienceCount = Object.keys(opts.qloo?.audienceAffinities ?? {}).length;
+
+  if (locationIsCityLevel && gate.qlooQuality === 'strong') {
+    gate.qlooQuality = 'moderate';
+    gate.warnings.push('Qloo location resolved to country level, not neighbourhood. Affinities reflect broad regional taste, not local culture. Treat recommendation as indicative.');
+  }
+
+  if (seedFallbackCount >= 2) {
+    gate.qlooQuality = 'insufficient';
+    gate.warnings.push(`${seedFallbackCount} of ${audienceCount} audience seeds could not be resolved to local entities. Cultural evidence is insufficient for a confident recommendation.`);
+    gate.allowConfidentRecommendation = false;
+  }
+
+  if (seedFallbackCount === 1 && gate.qlooQuality === 'strong') {
+    gate.qlooQuality = 'moderate';
+    gate.warnings.push('One audience seed fell back to the location anchor. Cultural evidence for that audience segment is approximate.');
+  }
+
+  gate.warnings = [...new Set(gate.warnings)];
+  return gate;
 }
 
 export function applyEvidenceGateToSnapshot(snapshot: AnalysisSnapshot, gate: EvidenceGate): AnalysisSnapshot {

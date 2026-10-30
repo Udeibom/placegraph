@@ -7,6 +7,14 @@ Audience relationships: {audienceAnalysis}
 Cultural/Qloo context: {qlooContext}
 Hard operational constraints: {hardConstraints}
 
+CRITICAL LANGUAGE RULES — violating these will invalidate the analysis:
+
+1. NEVER use the word "demand" to describe a Qloo affinity. Affinities are cultural relationships, not demand signals. Use "affinity", "cultural relationship", or "scored connection" instead.
+2. NEVER say "Qloo shows demand for X" or "Qloo's analysis indicates X". Qloo provides scored entity relationships. PlaceGraph interprets them.
+3. NEVER attribute a specific business design decision (colour palette, décor style, music policy) directly to an affinity with a brand or landmark. A Wowcher affinity does not mean the space should look like Wowcher. A Westminster Abbey affinity does not mean ceremony rooms. Explain the cultural signal and then reason from it to a spatial implication.
+4. NEVER treat the absence of an online-only brand or national landmark from a neighbourhood as a "whitespace opportunity". Wowcher not having a shop in Peckham is not a cultural gap.
+5. When you reference a Qloo entity, always include its affinity score and always note it is a cultural relationship: "Hackney Event Space (0.972) — a scored cultural relationship, not a demand signal."
+
 Generate 2-4 genuinely different EXPERIENCE CONCEPTS. Do not just generate ideas - EVALUATE them using Qloo-derived cultural signals.
 
 For each concept, you MUST explain:

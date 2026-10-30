@@ -297,6 +297,11 @@ export default function ReviewPage() {
                 <p style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--qloo)', marginBottom: '0.5rem' }}>
                   This recommendation changed because of Qloo
                 </p>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.375rem', lineHeight: 1.5 }}>
+                  This comparison is a single paired run. The direction change is attributed to Qloo cultural intelligence,
+                  but some variation between runs is normal in LLM-based systems. The strength of this comparison
+                  is the specific scored affinities listed below — those are real data, not model variation.
+                </p>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                   {cf.whatQlooChanged.map((item: string, i: number) => (
                     <li key={i} style={{

@@ -92,6 +92,57 @@ function counterfactualChanges(generic: AnalysisSnapshot, cultural: AnalysisSnap
   return changes;
 }
 
+function applyConstraintFeasibility(
+  strategies: Strategy[],
+  project: Project
+): Strategy[] {
+  const constraints = (project.constraints ?? [])
+    .map((c) => `${c.key}: ${c.value}`.toLowerCase());
+
+  const hasConstraint = (keywords: string[]) =>
+    constraints.some((c) => keywords.some((kw) => c.includes(kw)));
+
+  const noLateNight = hasConstraint(['late-night', 'late night', 'no events', 'on-licence only', 'on licence only']);
+  const noLoudNoise = hasConstraint(['noise', 'residential above', 'acoustic']);
+  const noExtraction = hasConstraint(['no extraction', 'no heavy cooking']);
+  const streetLevelOnly = hasConstraint(['no basement', 'street level only']);
+
+  return strategies.map((strategy) => {
+    const violations: string[] = [];
+    const text = `${strategy.title} ${strategy.experienceThesis} ${strategy.why} ${strategy.physicalExperience ?? ''}`.toLowerCase();
+
+    if (noLateNight && /late.night|after.midnight|night.programme|evening.events|late.licence/i.test(text)) {
+      violations.push('Relies on late-night programming which the licence constraint prohibits.');
+    }
+    if (noLoudNoise && /loud|high.volume|amplified.music|live.music.night|club.night/i.test(text)) {
+      violations.push('Requires sound levels that conflict with the residential noise constraint.');
+    }
+    if (noExtraction && /full.kitchen|heavy.cooking|extraction|open.flame|deep.fry/i.test(text)) {
+      violations.push('Requires kitchen capability that the fit-out constraint prohibits.');
+    }
+    if (streetLevelOnly && /basement|lower.ground|underground/i.test(text)) {
+      violations.push('Depends on basement or lower-ground space which the access constraint prohibits.');
+    }
+
+    if (violations.length > 0) {
+      // Do not discard — flag it so the user sees the conflict
+      return {
+        ...strategy,
+        assumptions: [
+          ...strategy.assumptions,
+          ...violations.map((v) => `CONSTRAINT CONFLICT: ${v}`)
+        ],
+        // Reduce evaluation score if it has one
+        evaluationScore: strategy.evaluationScore != null
+          ? Math.max(1, strategy.evaluationScore - violations.length * 2)
+          : strategy.evaluationScore,
+      };
+    }
+
+    return strategy;
+  });
+}
+
 function withheldQlooContext(project: Project): QlooContext {
   return {
     source: 'mock',
@@ -577,6 +628,7 @@ export class AgentOrchestrator {
       ...s,
       qlooEstablished: sanitizeQlooText(s.qlooEstablished, qlooContext)
     }));
+    snapshot.strategies = applyConstraintFeasibility(snapshot.strategies, input.project);
 
     prov.create('inference', `Generated ${snapshot.opportunities.length} opportunities and ${snapshot.strategies.length} strategies`, {
       parentId: root.id
@@ -839,7 +891,7 @@ export class AgentOrchestrator {
           : targets.length
             ? [`This recommendation changed because of Qloo. Scored affinities (${targetList}) revealed a culturally differentiated opportunity that generic analysis missed.`]
             : ['No scored Qloo affinities were available; difference is limited to how evidence is framed.'],
-        caveat: 'This demonstrates that Qloo cultural intelligence changes the investment decision (what concept deserves capital consideration). It does not prove commercial performance.'
+        caveat: 'This is a single paired comparison. Qloo cultural intelligence changes the reasoning and the specific evidence cited. Some variation between LLM runs is normal. The scored affinity evidence cited above is real Qloo data; the conceptual differences are attributed to that evidence.'
       },
       updatedAt: nowIso()
     };
