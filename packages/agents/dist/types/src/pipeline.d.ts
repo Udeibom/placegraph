@@ -716,6 +716,22 @@ export declare const EvidenceGateSchema: z.ZodObject<{
     intelligenceMode: z.ZodEnum<["live", "mixed", "template"]>;
     allowConfidentRecommendation: z.ZodBoolean;
     warnings: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    evidenceSummary: z.ZodOptional<z.ZodObject<{
+        canRecommend: z.ZodBoolean;
+        canDiscover: z.ZodBoolean;
+        missingEvidence: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        whatWouldResolveIt: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        canRecommend: boolean;
+        canDiscover: boolean;
+        missingEvidence: string[];
+        whatWouldResolveIt: string[];
+    }, {
+        canRecommend: boolean;
+        canDiscover: boolean;
+        missingEvidence?: string[] | undefined;
+        whatWouldResolveIt?: string[] | undefined;
+    }>>;
 }, "strip", z.ZodTypeAny, {
     locationQuality: "strong" | "moderate" | "insufficient";
     qlooQuality: "strong" | "moderate" | "insufficient";
@@ -723,6 +739,12 @@ export declare const EvidenceGateSchema: z.ZodObject<{
     intelligenceMode: "mixed" | "live" | "template";
     allowConfidentRecommendation: boolean;
     warnings: string[];
+    evidenceSummary?: {
+        canRecommend: boolean;
+        canDiscover: boolean;
+        missingEvidence: string[];
+        whatWouldResolveIt: string[];
+    } | undefined;
 }, {
     locationQuality: "strong" | "moderate" | "insufficient";
     qlooQuality: "strong" | "moderate" | "insufficient";
@@ -730,6 +752,12 @@ export declare const EvidenceGateSchema: z.ZodObject<{
     intelligenceMode: "mixed" | "live" | "template";
     allowConfidentRecommendation: boolean;
     warnings?: string[] | undefined;
+    evidenceSummary?: {
+        canRecommend: boolean;
+        canDiscover: boolean;
+        missingEvidence?: string[] | undefined;
+        whatWouldResolveIt?: string[] | undefined;
+    } | undefined;
 }>;
 export declare const JobProgressSchema: z.ZodObject<{
     stage: z.ZodString;
@@ -1940,6 +1968,22 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         intelligenceMode: z.ZodEnum<["live", "mixed", "template"]>;
         allowConfidentRecommendation: z.ZodBoolean;
         warnings: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        evidenceSummary: z.ZodOptional<z.ZodObject<{
+            canRecommend: z.ZodBoolean;
+            canDiscover: z.ZodBoolean;
+            missingEvidence: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            whatWouldResolveIt: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence: string[];
+            whatWouldResolveIt: string[];
+        }, {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence?: string[] | undefined;
+            whatWouldResolveIt?: string[] | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         locationQuality: "strong" | "moderate" | "insufficient";
         qlooQuality: "strong" | "moderate" | "insufficient";
@@ -1947,6 +1991,12 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         intelligenceMode: "mixed" | "live" | "template";
         allowConfidentRecommendation: boolean;
         warnings: string[];
+        evidenceSummary?: {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence: string[];
+            whatWouldResolveIt: string[];
+        } | undefined;
     }, {
         locationQuality: "strong" | "moderate" | "insufficient";
         qlooQuality: "strong" | "moderate" | "insufficient";
@@ -1954,6 +2004,12 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         intelligenceMode: "mixed" | "live" | "template";
         allowConfidentRecommendation: boolean;
         warnings?: string[] | undefined;
+        evidenceSummary?: {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence?: string[] | undefined;
+            whatWouldResolveIt?: string[] | undefined;
+        } | undefined;
     }>>;
     intelligenceMode: z.ZodOptional<z.ZodEnum<["live", "mixed", "template"]>>;
     progress: z.ZodOptional<z.ZodObject<{
@@ -2245,6 +2301,12 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         intelligenceMode: "mixed" | "live" | "template";
         allowConfidentRecommendation: boolean;
         warnings: string[];
+        evidenceSummary?: {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence: string[];
+            whatWouldResolveIt: string[];
+        } | undefined;
     } | undefined;
     progress?: {
         at: string;
@@ -2526,6 +2588,12 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         intelligenceMode: "mixed" | "live" | "template";
         allowConfidentRecommendation: boolean;
         warnings?: string[] | undefined;
+        evidenceSummary?: {
+            canRecommend: boolean;
+            canDiscover: boolean;
+            missingEvidence?: string[] | undefined;
+            whatWouldResolveIt?: string[] | undefined;
+        } | undefined;
     } | undefined;
     progress?: {
         at: string;
@@ -2536,28 +2604,13 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
 }>;
 export declare const PIPELINE_STAGES: readonly [{
     readonly id: "place";
-    readonly label: "Location + audience + objective";
+    readonly label: "Brief";
 }, {
-    readonly id: "culture";
-    readonly label: "Qloo cultural intelligence";
+    readonly id: "recommendation";
+    readonly label: "Recommendation";
 }, {
-    readonly id: "opportunity";
-    readonly label: "Cultural opportunities";
-}, {
-    readonly id: "strategy";
-    readonly label: "Experience concepts";
-}, {
-    readonly id: "experience";
-    readonly label: "Experience requirements";
-}, {
-    readonly id: "architecture";
-    readonly label: "Spatial/architectural implications";
-}, {
-    readonly id: "concept";
-    readonly label: "Spatial concept";
-}, {
-    readonly id: "visualization";
-    readonly label: "Concept render";
+    readonly id: "spatial";
+    readonly label: "Spatial translation";
 }, {
     readonly id: "review";
     readonly label: "Review";

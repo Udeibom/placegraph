@@ -2,9 +2,13 @@ import type {
   AnalysisSnapshot,
   ArchitecturalDecision,
   ExperienceRequirement,
+  HospitalityOutput,
+  OperatorOutput,
   Opportunity,
+  PlaceProfile,
   Project,
   QlooContext,
+  RetailStrategyOutput,
   Review,
   SpatialConcept,
   Strategy
@@ -13,8 +17,12 @@ import { ProvenanceBuilder, generateId, nowIso, parseJsonFromLlm, replaceVars } 
 import {
   ARCHITECTURE_PROMPT,
   EXPERIENCE_REQ_PROMPT,
+  HOSPITALITY_OUTPUT_PROMPT,
   LANDSCAPE_PROMPT,
+  OPERATOR_OUTPUT_PROMPT,
   OPPORTUNITY_ANALYSIS_PROMPT,
+  PLACE_INVESTIGATION_PROMPT,
+  RETAIL_OUTPUT_PROMPT,
   REVIEW_PROMPT,
   STRATEGY_GENERATION_PROMPT
 } from './prompts';
@@ -23,9 +31,13 @@ import { gatherLocationContext } from './location';
 import { gatherQlooContext } from './qloo-context';
 import {
   fallbackArchitecture,
+  fallbackHospitalityOutput,
   fallbackLandscapes,
+  fallbackOperatorOutput,
   fallbackOpportunities,
+  fallbackPlaceProfile,
   fallbackRequirements,
+  fallbackRetailOutput,
   fallbackStrategies
 } from './fallback';
 import { VisualizationService } from './visualization';
@@ -383,6 +395,73 @@ function normalizeOpportunity(raw: any, runId: string): Opportunity {
   };
 }
 
+function normalizeRetailOutput(raw: any, project: Project): RetailStrategyOutput {
+  return {
+    positioning: asText(raw.positioning) || `Retail positioning for ${project.location.city || 'this location'} — requires live LLM output.`,
+    categoryMix: (Array.isArray(raw.categoryMix) ? raw.categoryMix : []).map((c: any) => ({
+      category: asText(c.category),
+      alignment: asText(c.alignment),
+      evidence: asTextList(c.evidence),
+      confidence: ['strong', 'moderate', 'weak'].includes(c.confidence) ? c.confidence : 'moderate',
+    })),
+    formatRecommendation: asText(raw.formatRecommendation) || 'Format recommendation unavailable.',
+    communityFit: asText(raw.communityFit) || '',
+    localCollaborations: asTextList(raw.localCollaborations),
+    evidenceSummary: asText(raw.evidenceSummary) || '',
+    gaps: asTextList(raw.gaps),
+  };
+}
+
+function normalizeOperatorOutput(raw: any): OperatorOutput {
+  return {
+    programmingModel: asText(raw.programmingModel) || 'Programming model unavailable.',
+    experienceMix: (Array.isArray(raw.experienceMix) ? raw.experienceMix : []).map((e: any) => ({
+      type: asText(e.type),
+      rationale: asText(e.rationale),
+      proportion: ['primary', 'secondary', 'supplementary'].includes(e.proportion) ? e.proportion : 'secondary',
+      evidence: asTextList(e.evidence),
+    })),
+    activations: (Array.isArray(raw.activations) ? raw.activations : []).map((a: any) => ({
+      activity: asText(a.activity),
+      rationale: asText(a.rationale),
+      audience: asText(a.audience),
+      frequency: asText(a.frequency),
+      spaceRequired: asOptionalText(a.spaceRequired),
+      evidence: asTextList(a.evidence),
+    })),
+    tenantRationale: (Array.isArray(raw.tenantRationale) ? raw.tenantRationale : []).map((t: any) => ({
+      tenantType: asText(t.tenantType),
+      why: asText(t.why),
+      evidence: asTextList(t.evidence),
+    })),
+    evidenceSummary: asText(raw.evidenceSummary) || '',
+    whatToStop: asTextList(raw.whatToStop),
+  };
+}
+
+function normalizeHospitalityOutput(raw: any): HospitalityOutput {
+  return {
+    conceptIdentity: asText(raw.conceptIdentity) || '',
+    fbStrategy: asText(raw.fbStrategy) || '',
+    daypartStrategy: asText(raw.daypartStrategy) || '',
+    programmingModel: asText(raw.programmingModel) || '',
+    atmosphereNotes: asText(raw.atmosphereNotes) || '',
+    evidenceSummary: asText(raw.evidenceSummary) || '',
+  };
+}
+
+function normalizePlaceProfile(raw: any): PlaceProfile {
+  return {
+    placeIdentity: asText(raw.placeIdentity) || '',
+    communityProfile: asText(raw.communityProfile) || '',
+    culturalAssets: asTextList(raw.culturalAssets),
+    commercialSupply: asText(raw.commercialSupply) || '',
+    behaviouralSignals: asText(raw.behaviouralSignals) || '',
+    unmetNeeds: asTextList(raw.unmetNeeds),
+    evidenceQuality: ['strong', 'moderate', 'insufficient'].includes(raw.evidenceQuality) ? raw.evidenceQuality : 'moderate',
+  };
+}
+
 function normalizeStrategy(raw: any, runId: string): Strategy {
   return {
     id: asText(raw.id) || generateId('strat'),
@@ -544,6 +623,19 @@ export class AgentOrchestrator {
       updatedAt: nowIso()
     };
 
+    // Discover mode: run place investigation before landscape/opportunity prompts
+    if (isDiscoverMode) {
+      onProgress?.('place', 'Investigating place character and community profile…');
+      const placeInvFallback = fallbackPlaceProfile(input.project, snapshot);
+      const placeInvPrompt = replaceVars(PLACE_INVESTIGATION_PROMPT, {
+        project: input.project,
+        locationContext: promptLocation,
+        qlooContext: compactPromptQloo(qlooContext),
+      });
+      const placeInvJson = await this.json<any>(placeInvPrompt, placeInvFallback);
+      snapshot.placeProfile = normalizePlaceProfile(placeInvJson);
+    }
+
     onProgress?.('opportunity', 'Comparing existing, potential and proposed cultural landscapes…');
     const landscapeFallback = fallbackLandscapes(input.project, snapshot);
     const landscapePrompt = replaceVars(LANDSCAPE_PROMPT, {
@@ -586,7 +678,7 @@ export class AgentOrchestrator {
     const oppFallback = fallbackOpportunities(input.project, runId, snapshot);
     const oppPrompt = replaceVars(OPPORTUNITY_ANALYSIS_PROMPT, {
       mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
-      operatorContext: isDiscoverMode && input.project.operatorType
+      operatorContext: input.project.operatorType
         ? `Operator type: ${input.project.operatorType}. Tailor opportunity types to decisions this type of operator actually makes.`
         : '',
       project: input.project,
@@ -670,6 +762,51 @@ export class AgentOrchestrator {
       updatedAt: nowIso()
     };
 
+    const operatorType = project.operatorType;
+
+    // ── Retail brand: category strategy + format brief, no architecture ──────
+    if (operatorType === 'retail') {
+      onProgress?.('architecture', 'Building retail category strategy and format recommendation…');
+      const retailFallback = fallbackRetailOutput(project, strategy);
+      const retailPrompt = replaceVars(RETAIL_OUTPUT_PROMPT, {
+        project,
+        strategy,
+        qlooContext: compactQloo(analysis.qlooContext),
+        audienceAnalysis: analysis.audienceAnalysis,
+        locationContext: compactLocation(analysis.locationContext),
+        hardConstraints: constraintPrompt(project)
+      }) + (guidance ? `\nGuidance:\n${guidance}` : '');
+      const retailJson = await this.json<any>(retailPrompt, retailFallback);
+      next.retailOutput = normalizeRetailOutput(retailJson, project);
+      next.provenance = [
+        ...analysis.provenance,
+        { id: generateId('prov'), kind: 'decision', explanation: `Retail strategy output derived from strategy "${strategy.title}"`, refs: [], qlooRefs: strategy.evidenceRefs }
+      ];
+      return next;
+    }
+
+    // ── Facility operator: programming model, no architecture ────────────────
+    if (operatorType === 'operator') {
+      onProgress?.('architecture', 'Building programming model and experience mix…');
+      const operatorFallback = fallbackOperatorOutput(project, strategy);
+      const operatorPrompt = replaceVars(OPERATOR_OUTPUT_PROMPT, {
+        project,
+        strategy,
+        qlooContext: compactQloo(analysis.qlooContext),
+        audienceAnalysis: analysis.audienceAnalysis,
+        locationContext: compactLocation(analysis.locationContext),
+        hardConstraints: constraintPrompt(project)
+      }) + (guidance ? `\nGuidance:\n${guidance}` : '');
+      const operatorJson = await this.json<any>(operatorPrompt, operatorFallback);
+      next.operatorOutput = normalizeOperatorOutput(operatorJson);
+      next.provenance = [
+        ...analysis.provenance,
+        { id: generateId('prov'), kind: 'decision', explanation: `Operator programming model derived from strategy "${strategy.title}"`, refs: [], qlooRefs: strategy.evidenceRefs }
+      ];
+      return next;
+    }
+
+    // ── Developer / Hospitality: standard experience → architecture pipeline ─
     onProgress?.('experience', 'Translating strategy into experience requirements…');
     const reqFallback = fallbackRequirements(project, strategy);
     const reqPrompt =
@@ -765,6 +902,24 @@ export class AgentOrchestrator {
         qlooRefs: strategy.evidenceRefs
       }
     ];
+
+    // ── Hospitality: add concept identity + F&B strategy on top of architecture
+    if (operatorType === 'hospitality') {
+      onProgress?.('hospitality', 'Formalising hospitality concept identity, F&B strategy, and programming model…');
+      const hospitalityFallback = fallbackHospitalityOutput(project, strategy);
+      const hospitalityPrompt = replaceVars(HOSPITALITY_OUTPUT_PROMPT, {
+        project,
+        strategy,
+        requirements: next.requirements,
+        concept: next.concept,
+        qlooContext: compactQloo(analysis.qlooContext),
+        audienceAnalysis: analysis.audienceAnalysis,
+        hardConstraints: constraintPrompt(project)
+      }) + (guidance ? `\nGuidance:\n${guidance}` : '');
+      const hospitalityJson = await this.json<any>(hospitalityPrompt, hospitalityFallback);
+      next.hospitalityOutput = normalizeHospitalityOutput(hospitalityJson);
+    }
+
     return next;
   }
 

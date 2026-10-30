@@ -251,6 +251,75 @@ export const CounterfactualSchema = z.object({
   caveat: z.string()
 });
 
+// ─── Operator-specific output types ──────────────────────────────────────────
+
+export const RetailCategorySchema = z.object({
+  category: z.string(),
+  alignment: z.string(),
+  evidence: z.array(z.string()).default([]),
+  confidence: z.enum(['strong', 'moderate', 'weak']).default('moderate'),
+});
+
+export const RetailStrategyOutputSchema = z.object({
+  positioning: z.string(),
+  categoryMix: z.array(RetailCategorySchema).default([]),
+  formatRecommendation: z.string(),
+  communityFit: z.string(),
+  localCollaborations: z.array(z.string()).default([]),
+  evidenceSummary: z.string(),
+  gaps: z.array(z.string()).default([]),
+});
+
+export const ProgrammingActivitySchema = z.object({
+  activity: z.string(),
+  rationale: z.string(),
+  audience: z.string(),
+  frequency: z.string(),
+  spaceRequired: z.string().optional(),
+  evidence: z.array(z.string()).default([]),
+});
+
+export const ExperienceMixItemSchema = z.object({
+  type: z.string(),
+  rationale: z.string(),
+  proportion: z.enum(['primary', 'secondary', 'supplementary']).default('secondary'),
+  evidence: z.array(z.string()).default([]),
+});
+
+export const TenantRationaleSchema = z.object({
+  tenantType: z.string(),
+  why: z.string(),
+  evidence: z.array(z.string()).default([]),
+});
+
+export const OperatorOutputSchema = z.object({
+  programmingModel: z.string(),
+  experienceMix: z.array(ExperienceMixItemSchema).default([]),
+  activations: z.array(ProgrammingActivitySchema).default([]),
+  tenantRationale: z.array(TenantRationaleSchema).default([]),
+  evidenceSummary: z.string(),
+  whatToStop: z.array(z.string()).default([]),
+});
+
+export const HospitalityOutputSchema = z.object({
+  conceptIdentity: z.string(),
+  fbStrategy: z.string(),
+  daypartStrategy: z.string(),
+  programmingModel: z.string(),
+  atmosphereNotes: z.string(),
+  evidenceSummary: z.string(),
+});
+
+export const PlaceProfileSchema = z.object({
+  placeIdentity: z.string(),
+  communityProfile: z.string(),
+  culturalAssets: z.array(z.string()).default([]),
+  commercialSupply: z.string(),
+  behaviouralSignals: z.string(),
+  unmetNeeds: z.array(z.string()).default([]),
+  evidenceQuality: z.enum(['strong', 'moderate', 'insufficient']).default('moderate'),
+});
+
 export const AnalysisSnapshotSchema = z.object({
   runId: z.string(),
   projectId: z.string(),
@@ -288,7 +357,12 @@ export const AnalysisSnapshotSchema = z.object({
   intelligenceMode: z.enum(['live', 'mixed', 'template']).optional(),
   progress: JobProgressSchema.optional(),
   error: z.string().optional(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  // Operator-specific outputs (only one will be populated based on operatorType)
+  placeProfile: PlaceProfileSchema.optional(),
+  retailOutput: RetailStrategyOutputSchema.optional(),
+  operatorOutput: OperatorOutputSchema.optional(),
+  hospitalityOutput: HospitalityOutputSchema.optional(),
 });
 
 export const PIPELINE_STAGES = [
@@ -319,3 +393,11 @@ export type QlooContext = z.infer<typeof QlooContextSchema>;
 export type Counterfactual = z.infer<typeof CounterfactualSchema>;
 export type AnalysisSnapshot = z.infer<typeof AnalysisSnapshotSchema>;
 export type ProjectRecord = z.infer<typeof ProjectSchema>;
+export type RetailCategory = z.infer<typeof RetailCategorySchema>;
+export type RetailStrategyOutput = z.infer<typeof RetailStrategyOutputSchema>;
+export type ProgrammingActivity = z.infer<typeof ProgrammingActivitySchema>;
+export type ExperienceMixItem = z.infer<typeof ExperienceMixItemSchema>;
+export type TenantRationale = z.infer<typeof TenantRationaleSchema>;
+export type OperatorOutput = z.infer<typeof OperatorOutputSchema>;
+export type HospitalityOutput = z.infer<typeof HospitalityOutputSchema>;
+export type PlaceProfile = z.infer<typeof PlaceProfileSchema>;

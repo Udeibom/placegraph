@@ -90,7 +90,7 @@ export default function NewProject() {
         mode:         form.mode,
         projectType:  form.mode === 'discover' ? 'other' : form.projectType,
         businessType: form.mode === 'discover' ? '' : form.businessType,
-        operatorType: form.mode === 'discover' && form.operatorType ? form.operatorType : undefined,
+        operatorType: form.operatorType || undefined,
         audiences:    form.audiences.filter((a) => a.name.trim()),
         constraints:  form.constraints.filter((c) => c.key.trim() && c.value.trim()),
       } as Parameters<typeof createProject>[0]);
@@ -247,43 +247,70 @@ export default function NewProject() {
             )}
 
             {form.mode === 'discover' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem', color: 'var(--ink-2)' }}>
-                  What kind of operator are you? (optional)
-                </label>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
-                  Tailors discovered opportunities to the decisions this type of operator actually makes.
+              <>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--muted-2)', fontStyle: 'italic', marginTop: '-0.5rem' }}>
+                  Business type is not required in discover mode — PlaceGraph will look for what should exist here based on cultural and local evidence.
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  {OPERATOR_TYPES.map((operator) => {
-                    const active = form.operatorType === operator.value;
-                    return (
-                      <label
-                        key={operator.value}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '0.625rem',
-                          padding: '0.625rem 0.875rem', cursor: 'pointer',
-                          border: `1.5px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
-                          borderRadius: 'var(--radius)', background: active ? 'var(--accent-light)' : 'var(--surface-raised)',
-                          transition: 'all var(--duration-fast) var(--ease)',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="operatorType"
-                          value={operator.value}
-                          checked={active}
-                          onChange={() => update('operatorType', operator.value)}
-                        />
-                        <span style={{ fontSize: '0.875rem', color: active ? 'var(--accent-2)' : 'var(--ink-2)' }}>
-                          {operator.label}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+              </>
             )}
+
+            {/* Operator type: available in both modes */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.375rem', color: 'var(--ink-2)' }}>
+                What kind of operator are you? (optional)
+              </label>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted)', marginBottom: '0.5rem' }}>
+                Shapes the final output — developers get spatial briefs, hospitality groups get concept identity and F&amp;B strategy, retail brands get category mix, operators get programming models.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                {([
+                  {
+                    value: 'developer' as const,
+                    label: 'Developer',
+                    body: 'Spatial brief, architectural decisions, concept renders.',
+                  },
+                  {
+                    value: 'hospitality' as const,
+                    label: 'Hospitality group',
+                    body: 'Concept identity, F&B strategy, daypart programming, atmosphere.',
+                  },
+                  {
+                    value: 'retail' as const,
+                    label: 'Retail brand',
+                    body: 'Category mix, format recommendation, community fit, local collaborations.',
+                  },
+                  {
+                    value: 'operator' as const,
+                    label: 'Operator / facility manager',
+                    body: 'Programming model, activations, experience mix, tenant rationale.',
+                  },
+                ] as const).map((operator) => {
+                  const active = form.operatorType === operator.value;
+                  return (
+                    <button
+                      key={operator.value}
+                      type="button"
+                      onClick={() => update('operatorType', active ? '' : operator.value)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem',
+                        padding: '0.75rem', textAlign: 'left', cursor: 'pointer',
+                        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--line)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--accent-light)' : 'var(--surface-raised)',
+                        transition: 'all var(--duration-fast) var(--ease)',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: active ? 'var(--accent-2)' : 'var(--ink-2)' }}>
+                        {operator.label}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted)', lineHeight: 1.4 }}>
+                        {operator.body}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <Field label="Street address">
               <input className="pg-input" value={form.location.address}

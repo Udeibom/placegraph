@@ -1,4 +1,14 @@
-export const STRATEGY_GENERATION_PROMPT = `You are generating and EVALUATING possible experience concepts for a physical place. This is a capital decision: decide what kind of place should be built, for whom, and why - before committing significant capital.
+export const STRATEGY_GENERATION_PROMPT = `Analysis mode: {mode}
+
+If mode is DISCOVER:
+- Do not assume a business type. Generate three investment directions that represent genuinely different commercial formats, not three versions of the same format.
+- Each direction should name a specific type of commercial experience, not a generic category. Not "food and beverage" but "neighbourhood wine and ferment bar." Not "retail" but "maker-goods and tools shop."
+- The title must be 3–5 words, evocative, specific enough to put above a door.
+
+If mode is EVALUATE:
+- The project brief specifies a business type. Your investment directions should be three different cultural expressions of that business type, differentiated by Qloo evidence.
+
+You are generating and EVALUATING possible experience concepts for a physical place. This is a capital decision: decide what kind of place should be built, for whom, and why - before committing significant capital.
 
 Project: {project}
 Opportunities: {opportunities}
@@ -6,6 +16,14 @@ Landscapes: {landscapes}
 Audience relationships: {audienceAnalysis}
 Cultural/Qloo context: {qlooContext}
 Hard operational constraints: {hardConstraints}
+
+CRITICAL LANGUAGE RULES — violating these will invalidate the analysis:
+
+1. NEVER use the word "demand" to describe a Qloo affinity. Affinities are cultural relationships, not demand signals. Use "affinity", "cultural relationship", or "scored connection" instead.
+2. NEVER say "Qloo shows demand for X" or "Qloo's analysis indicates X". Qloo provides scored entity relationships. PlaceGraph interprets them.
+3. NEVER attribute a specific business design decision (colour palette, décor style, music policy) directly to an affinity with a brand or landmark. A Wowcher affinity does not mean the space should look like Wowcher. A Westminster Abbey affinity does not mean ceremony rooms. Explain the cultural signal and then reason from it to a spatial implication.
+4. NEVER treat the absence of an online-only brand or national landmark from a neighbourhood as a "whitespace opportunity". Wowcher not having a shop in Peckham is not a cultural gap.
+5. When you reference a Qloo entity, always include its affinity score and always note it is a cultural relationship: "Hackney Event Space (0.972) — a scored cultural relationship, not a demand signal."
 
 Generate 2-4 genuinely different EXPERIENCE CONCEPTS. Do not just generate ideas - EVALUATE them using Qloo-derived cultural signals.
 
@@ -27,7 +45,7 @@ Direction types (choose the best fit):
 
 Each concept must include:
 - direction: one of the types above
-- title: a specific, non-generic name for this experience concept
+- title: 3–5 words maximum. Evocative, not descriptive. The kind of working name a real hospitality operator or investor would use — something you could put above a door or say in a pitch. Examples: “Quiet Arch”, “The Copper Still”, “Corner House”, “Rye Lane Social”, “The Yard”. Never describe what the concept does in the name. Never start with “The Design-Forward” or “The Culturally-”. Never use adjective + noun + noun chains.
 - whoServes: specific primary audience(s) from the brief
 - why: why this concept is viable at this location right now given Qloo signals
 - experienceThesis: the unique feeling / value proposition of this experience

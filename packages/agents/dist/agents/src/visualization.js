@@ -49,6 +49,10 @@ export function buildVisualizationPrompts(input) {
         input.project.location?.neighborhood,
         input.project.location?.city
     ]).join(', ');
+    // Build a specific building description. businessType is more precise than
+    // projectType. Extract structural keywords (arch, warehouse, vault, etc.)
+    // from businessType and objective so renders reflect the actual building.
+    const buildingDesc = deriveBuildingDescription(input.project);
     const zones = (concept.zones ?? [])
         .map((zone) => clean(zone?.name))
         .filter(Boolean)
@@ -69,8 +73,13 @@ export function buildVisualizationPrompts(input) {
         .filter(Boolean)
         .slice(0, 3)
         .join(', ');
+    // Extract a structural anchor from the building description or constraints.
+    // A distinctive physical structure (arch, vault, warehouse) grounds all three
+    // renders in the same spatial context and improves render-to-render coherence.
+    const structuralAnchor = deriveStructuralAnchor(input.project);
     const common = [
-        `Building: ${input.project.projectType} in ${location || 'the project site'}.`,
+        `Building: ${buildingDesc}${location ? ` in ${location}` : ''}.`,
+        structuralAnchor ? `Structure: ${structuralAnchor}.` : '',
         concept.organization ? `Spatial idea: ${clause(concept.organization, 180)}.` : '',
         zones ? `Zones: ${trim(zones, 240)}.` : '',
         materials ? `Materials: ${trim(materials, 160)}.` : ''
@@ -95,6 +104,83 @@ export function buildVisualizationPrompts(input) {
             negativePrompt: VISUALIZATION_NEGATIVE_PROMPT
         };
     });
+}
+// ─── Structural anchor ───────────────────────────────────────────────────
+// Extracts a specific structural description to anchor render coherence.
+// A distinctive structure (railway arch, Victorian warehouse, barrel vault)
+// is the single most effective coherence signal for image generation models.
+function deriveStructuralAnchor(project) {
+    const corpus = [
+        project.businessType,
+        project.objective,
+        ...(project.constraints ?? []).map((c) => `${c.key} ${c.value}`)
+    ]
+        .filter(Boolean)
+        .join(' ');
+    if (/railway\s+arch|rail\s+arch/i.test(corpus)) {
+        return 'single-span Victorian railway arch, brick barrel vault ceiling approximately 5m high, arch span approximately 8m wide, exposed brick walls throughout';
+    }
+    if (/warehouse/i.test(corpus)) {
+        return 'converted industrial warehouse, exposed steel trusses, high ceilings approximately 6\u20138m, large factory windows';
+    }
+    if (/vault/i.test(corpus)) {
+        return 'vaulted basement or cellar, low curved ceiling, exposed masonry walls';
+    }
+    if (/mews/i.test(corpus)) {
+        return 'converted mews building, low pitched roof, cobblestone frontage, modest two-storey scale';
+    }
+    if (/listed|heritage/i.test(corpus)) {
+        return 'listed heritage building, period detailing, original facade materials retained';
+    }
+    // Fall back to floor area as a coherence anchor
+    const area = project.floorArea;
+    if (area)
+        return `approximately ${area} ground-floor commercial unit`;
+    return '';
+}
+// ─── Building description ─────────────────────────────────────────────────
+// Extract the most specific description of the physical structure from the
+// project brief. businessType is preferred over projectType because it
+// contains user-supplied specifics ("independent wine bar in a railway arch").
+// We also scan objective and constraints for structural keywords.
+const STRUCTURAL_KEYWORDS = [
+    { pattern: /railway\s+arch|rail\s+arch/i, label: 'railway arch unit' },
+    { pattern: /warehouse/i, label: 'warehouse' },
+    { pattern: /railway\s+arch|arched\s+unit/i, label: 'railway arch' },
+    { pattern: /arch\s+unit|brick\s+arch/i, label: 'brick arch unit' },
+    { pattern: /arch\b/i, label: 'arch unit' },
+    { pattern: /vault/i, label: 'vaulted space' },
+    { pattern: /mews/i, label: 'mews building' },
+    { pattern: /shopfront|shop\s+front/i, label: 'shopfront' },
+    { pattern: /ground\s+floor|retail\s+unit/i, label: 'ground-floor unit' },
+    { pattern: /listed\s+building|heritage\s+build/i, label: 'listed building' },
+    { pattern: /converted\s+\w+/i, label: 'converted space' },
+    { pattern: /industrial/i, label: 'industrial unit' },
+];
+function deriveBuildingDescription(project) {
+    const corpus = [
+        project.businessType,
+        project.objective,
+        ...(project.constraints ?? []).map((c) => `${c.key} ${c.value}`)
+    ]
+        .filter(Boolean)
+        .join(' ');
+    // Try to find a structural keyword in the corpus
+    for (const { pattern, label } of STRUCTURAL_KEYWORDS) {
+        if (pattern.test(corpus)) {
+            // Also prepend the businessType if it adds specificity
+            const bt = clean(project.businessType);
+            if (bt && bt.toLowerCase() !== project.projectType) {
+                return `${bt} (${label})`;
+            }
+            return `${project.projectType} (${label})`;
+        }
+    }
+    // No structural keyword found — use businessType if it's more specific
+    const bt = clean(project.businessType);
+    if (bt && bt.toLowerCase() !== project.projectType)
+        return bt;
+    return project.projectType;
 }
 function clean(value) {
     if (value === undefined || value === null)

@@ -30,8 +30,10 @@ export const ProjectSchema = z.object({
         city: z.string().optional(),
         neighborhood: z.string().optional()
     }),
-    projectType: ProjectTypeSchema,
-    businessType: z.string().optional(),
+    mode: z.enum(['evaluate', 'discover']).default('evaluate'),
+    projectType: ProjectTypeSchema.default('other'),
+    businessType: z.string().default(''),
+    operatorType: z.enum(['developer', 'hospitality', 'retail', 'operator']).optional(),
     objective: z.string(),
     investmentIntent: z.string().optional(),
     budgetRange: z.string().optional(),

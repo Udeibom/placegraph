@@ -170,7 +170,13 @@ export const EvidenceGateSchema = z.object({
     llmAvailable: z.boolean(),
     intelligenceMode: z.enum(['live', 'mixed', 'template']),
     allowConfidentRecommendation: z.boolean(),
-    warnings: z.array(z.string()).default([])
+    warnings: z.array(z.string()).default([]),
+    evidenceSummary: z.object({
+        canRecommend: z.boolean(),
+        canDiscover: z.boolean(),
+        missingEvidence: z.array(z.string()).default([]),
+        whatWouldResolveIt: z.array(z.string()).default([]),
+    }).optional(),
 });
 export const JobProgressSchema = z.object({
     stage: z.string(),
@@ -260,13 +266,8 @@ export const AnalysisSnapshotSchema = z.object({
     updatedAt: z.string()
 });
 export const PIPELINE_STAGES = [
-    { id: 'place', label: 'Location + audience + objective' },
-    { id: 'culture', label: 'Qloo cultural intelligence' },
-    { id: 'opportunity', label: 'Cultural opportunities' },
-    { id: 'strategy', label: 'Experience concepts' },
-    { id: 'experience', label: 'Experience requirements' },
-    { id: 'architecture', label: 'Spatial/architectural implications' },
-    { id: 'concept', label: 'Spatial concept' },
-    { id: 'visualization', label: 'Concept render' },
-    { id: 'review', label: 'Review' }
+    { id: 'place', label: 'Brief' },
+    { id: 'recommendation', label: 'Recommendation' },
+    { id: 'spatial', label: 'Spatial translation' },
+    { id: 'review', label: 'Review' },
 ];

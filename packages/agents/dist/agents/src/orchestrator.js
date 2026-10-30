@@ -40,6 +40,46 @@ function counterfactualChanges(generic, cultural) {
     }
     return changes;
 }
+function applyConstraintFeasibility(strategies, project) {
+    const constraints = (project.constraints ?? [])
+        .map((c) => `${c.key}: ${c.value}`.toLowerCase());
+    const hasConstraint = (keywords) => constraints.some((c) => keywords.some((kw) => c.includes(kw)));
+    const noLateNight = hasConstraint(['late-night', 'late night', 'no events', 'on-licence only', 'on licence only']);
+    const noLoudNoise = hasConstraint(['noise', 'residential above', 'acoustic']);
+    const noExtraction = hasConstraint(['no extraction', 'no heavy cooking']);
+    const streetLevelOnly = hasConstraint(['no basement', 'street level only']);
+    return strategies.map((strategy) => {
+        const violations = [];
+        const text = `${strategy.title} ${strategy.experienceThesis} ${strategy.why} ${strategy.physicalExperience ?? ''}`.toLowerCase();
+        if (noLateNight && /late.night|after.midnight|night.programme|evening.events|late.licence/i.test(text)) {
+            violations.push('Relies on late-night programming which the licence constraint prohibits.');
+        }
+        if (noLoudNoise && /loud|high.volume|amplified.music|live.music.night|club.night/i.test(text)) {
+            violations.push('Requires sound levels that conflict with the residential noise constraint.');
+        }
+        if (noExtraction && /full.kitchen|heavy.cooking|extraction|open.flame|deep.fry/i.test(text)) {
+            violations.push('Requires kitchen capability that the fit-out constraint prohibits.');
+        }
+        if (streetLevelOnly && /basement|lower.ground|underground/i.test(text)) {
+            violations.push('Depends on basement or lower-ground space which the access constraint prohibits.');
+        }
+        if (violations.length > 0) {
+            // Do not discard — flag it so the user sees the conflict
+            return {
+                ...strategy,
+                assumptions: [
+                    ...strategy.assumptions,
+                    ...violations.map((v) => `CONSTRAINT CONFLICT: ${v}`)
+                ],
+                // Reduce evaluation score if it has one
+                evaluationScore: strategy.evaluationScore != null
+                    ? Math.max(1, strategy.evaluationScore - violations.length * 2)
+                    : strategy.evaluationScore,
+            };
+        }
+        return strategy;
+    });
+}
 function withheldQlooContext(project) {
     return {
         source: 'mock',
@@ -163,12 +203,18 @@ function compactPatterns(patterns, limit = 7, placeLimit = 4) {
 function compactPromptQloo(qloo) {
     if (!qloo)
         return qloo;
+    const cross = qloo.crossDomain?.results;
     return {
         source: qloo.source,
         insufficient: qloo.insufficient,
         culturalThesis: qloo.culturalThesis,
         culturalPatterns: compactPatterns(qloo.culturalPatterns, 7, 4),
         affinities: compactAffinities(qloo.affinities, 8),
+        // Include cross-domain brands and artists so strategies can reference them
+        crossDomain: cross ? {
+            brands: compactAffinities(cross.brands, 5),
+            artists: compactAffinities(cross.artists, 5),
+        } : undefined,
         notes: (qloo.notes || []).slice(0, 2)
     };
 }
@@ -364,6 +410,7 @@ export class AgentOrchestrator {
     }
     async analyze(input, onProgress) {
         const runId = generateId('run');
+        const isDiscoverMode = input.project.mode === 'discover';
         const prov = new ProvenanceBuilder();
         const root = prov.create('inference', 'Cultural intelligence analysis started', { parentId: null });
         prov.setRoot(root.id);
@@ -382,7 +429,8 @@ export class AgentOrchestrator {
         const gate = buildEvidenceGate({
             llmAvailable: this.llm.available,
             location: locationContext,
-            qloo: qlooContext
+            qloo: qlooContext,
+            project: input.project
         });
         // Keep prompts within the Groq free-tier token budget (8k TPM per model).
         const promptLocation = compactLocation(locationContext);
@@ -456,6 +504,10 @@ export class AgentOrchestrator {
         onProgress?.('opportunity', 'Forming opportunity hypotheses…');
         const oppFallback = fallbackOpportunities(input.project, runId, snapshot);
         const oppPrompt = replaceVars(OPPORTUNITY_ANALYSIS_PROMPT, {
+            mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
+            operatorContext: isDiscoverMode && input.project.operatorType
+                ? `Operator type: ${input.project.operatorType}. Tailor opportunity types to decisions this type of operator actually makes.`
+                : '',
             project: input.project,
             landscapes: compactPromptLandscapes(snapshot.landscapes),
             audienceAnalysis: snapshot.audienceAnalysis,
@@ -474,6 +526,7 @@ export class AgentOrchestrator {
         onProgress?.('strategy', 'Drafting distinct strategic directions…');
         const stratFallback = fallbackStrategies(input.project, runId, snapshot.opportunities, qlooContext);
         const stratPrompt = replaceVars(STRATEGY_GENERATION_PROMPT, {
+            mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
             project: input.project,
             opportunities: compactPromptOpportunities(snapshot.opportunities),
             landscapes: compactPromptLandscapes(snapshot.landscapes),
@@ -481,14 +534,22 @@ export class AgentOrchestrator {
             qlooContext: compactPromptQloo(qlooContext),
             hardConstraints: constraintPrompt(input.project)
         }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
-        const stratJson = await this.json(stratPrompt, { strategies: stratFallback }, undefined, 3500);
-        const strategies = (stratJson.strategies || stratFallback)
+        let stratJson = await this.json(stratPrompt, { strategies: stratFallback }, undefined, 3500);
+        // Retry once if fewer than 2 strategies were returned — the LLM sometimes
+        // collapses multiple directions into one. A retry with an explicit count
+        // instruction almost always recovers the full set.
+        if (!stratJson.strategies || stratJson.strategies.length < 2) {
+            const retryPrompt = stratPrompt + '\n\nCRITICAL: You MUST return exactly 3 strategies in the JSON array. Each must have a genuinely different direction type (Local Cultural Alignment, Cultural Whitespace, Destination Experience). Do not return fewer than 3.';
+            stratJson = await this.json(retryPrompt, { strategies: stratFallback }, undefined, 3500);
+        }
+        const strategies = (stratJson.strategies?.length >= 2 ? stratJson.strategies : stratFallback)
             .map((s) => normalizeStrategy(s, runId))
             .map((s) => sanitizeStrategyConstraints(s, input.project, culturalLabels));
         snapshot.strategies = (strategies.length ? strategies : stratFallback).map((s) => ({
             ...s,
             qlooEstablished: sanitizeQlooText(s.qlooEstablished, qlooContext)
         }));
+        snapshot.strategies = applyConstraintFeasibility(snapshot.strategies, input.project);
         prov.create('inference', `Generated ${snapshot.opportunities.length} opportunities and ${snapshot.strategies.length} strategies`, {
             parentId: root.id
         });
@@ -711,7 +772,7 @@ export class AgentOrchestrator {
                     : targets.length
                         ? [`This recommendation changed because of Qloo. Scored affinities (${targetList}) revealed a culturally differentiated opportunity that generic analysis missed.`]
                         : ['No scored Qloo affinities were available; difference is limited to how evidence is framed.'],
-                caveat: 'This demonstrates that Qloo cultural intelligence changes the investment decision (what concept deserves capital consideration). It does not prove commercial performance.'
+                caveat: 'This is a single paired comparison. Qloo cultural intelligence changes the reasoning and the specific evidence cited. Some variation between LLM runs is normal. The scored affinity evidence cited above is real Qloo data; the conceptual differences are attributed to that evidence.'
             },
             updatedAt: nowIso()
         };

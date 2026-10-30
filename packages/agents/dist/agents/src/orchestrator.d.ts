@@ -335,6 +335,12 @@ export declare class AgentOrchestrator {
                 intelligenceMode: "mixed" | "live" | "template";
                 allowConfidentRecommendation: boolean;
                 warnings: string[];
+                evidenceSummary?: {
+                    canRecommend: boolean;
+                    canDiscover: boolean;
+                    missingEvidence: string[];
+                    whatWouldResolveIt: string[];
+                } | undefined;
             } | undefined;
             progress?: {
                 at: string;
@@ -659,6 +665,12 @@ export declare class AgentOrchestrator {
                 intelligenceMode: "mixed" | "live" | "template";
                 allowConfidentRecommendation: boolean;
                 warnings: string[];
+                evidenceSummary?: {
+                    canRecommend: boolean;
+                    canDiscover: boolean;
+                    missingEvidence: string[];
+                    whatWouldResolveIt: string[];
+                } | undefined;
             } | undefined;
             progress?: {
                 at: string;

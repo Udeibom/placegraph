@@ -4,9 +4,13 @@ import type {
   ArchitecturalDecision,
   CulturalLandscape,
   ExperienceRequirement,
+  HospitalityOutput,
   Opportunity,
+  OperatorOutput,
+  PlaceProfile,
   Project,
   QlooContext,
+  RetailStrategyOutput,
   SpatialConcept,
   Strategy
 } from '@placegraph/types';
@@ -362,4 +366,93 @@ function summarizeCategories(pois: { category?: string }[]): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
     .map(([k, n]) => `${k} (${n})`);
+}
+
+export function fallbackRetailOutput(project: Project, strategy: Strategy): RetailStrategyOutput {
+  const place = locLabel(project);
+  return {
+    positioning: `A retail presence in ${place} whose identity is shaped by the cultural evidence available for this audience, not by generic market positioning.`,
+    categoryMix: [
+      {
+        category: strategy.direction === 'whitespace' ? 'Culturally underserved category (see strategy)' : 'Category aligned with local culture',
+        alignment: strategy.experienceThesis || 'Anchored to the selected strategy direction.',
+        evidence: strategy.evidenceRefs.slice(0, 3),
+        confidence: 'moderate',
+      }
+    ],
+    formatRecommendation: `Format to be determined by audience evidence and site constraints. The selected strategy direction is: ${strategy.direction}.`,
+    communityFit: `The brand should position relative to what already exists in ${place} — neither ignoring local culture nor merely copying it.`,
+    localCollaborations: ['Local makers whose work aligns with the scored Qloo affinities', 'Community markets or independent venues already credible in this area'],
+    evidenceSummary: `Fallback output — live LLM was unavailable. Strategy direction: ${strategy.title}. Qloo evidence should be reviewed before retail decisions are made.`,
+    gaps: ['Retail categories suggested by Qloo affinities but absent from local POI data'],
+  };
+}
+
+export function fallbackOperatorOutput(project: Project, strategy: Strategy): OperatorOutput {
+  const place = locLabel(project);
+  return {
+    programmingModel: `A programming model for ${place} that reflects the cultural relationships identified by Qloo for this audience. Live LLM output was unavailable — this is a structural fallback.`,
+    experienceMix: [
+      {
+        type: 'community',
+        rationale: 'Community programming is a common primary mode for operators seeking cultural relevance.',
+        proportion: 'primary',
+        evidence: strategy.evidenceRefs.slice(0, 2),
+      },
+      {
+        type: 'food',
+        rationale: 'Food and beverage is typically a secondary or supplementary activation in mixed facilities.',
+        proportion: 'secondary',
+        evidence: [],
+      }
+    ],
+    activations: [
+      {
+        activity: 'Audience-appropriate cultural programming (to be specified from Qloo evidence)',
+        rationale: strategy.experienceThesis || 'Derived from selected strategy.',
+        audience: strategy.whoServes,
+        frequency: 'monthly',
+        spaceRequired: project.floorArea || undefined,
+        evidence: strategy.evidenceRefs.slice(0, 2),
+      }
+    ],
+    tenantRationale: [
+      {
+        tenantType: 'Independent operator aligned with Qloo cultural patterns',
+        why: `Tenants should reflect the scored cultural relationships between this audience and the local environment in ${place}.`,
+        evidence: strategy.evidenceRefs.slice(0, 2),
+      }
+    ],
+    evidenceSummary: `Fallback output — live LLM was unavailable. Strategy: ${strategy.title}. Qloo evidence and a live LLM pass are required to generate a meaningful programming model.`,
+    whatToStop: ['Generic programming that does not reflect the specific cultural relationships identified for this audience'],
+  };
+}
+
+export function fallbackHospitalityOutput(project: Project, strategy: Strategy): HospitalityOutput {
+  const place = locLabel(project);
+  return {
+    conceptIdentity: `A hospitality concept in ${place} anchored to the cultural relationships identified by Qloo. Identity positioning requires a live LLM pass to be specific.`,
+    fbStrategy: `F&B direction should reflect the Qloo cultural pattern mix and local food culture in ${place}. Fallback output — not suitable for briefing without a live LLM revision.`,
+    daypartStrategy: 'Daypart programming to be defined based on audience evidence and operational constraints.',
+    programmingModel: `Community programming should be limited to what the cultural evidence in ${place} supports. Avoid event-heavy models unless evidence specifically supports them.`,
+    atmosphereNotes: `Atmosphere should reflect the Qloo cultural pattern mix — not generic hospitality aesthetics. Strategy direction: ${strategy.direction}. Named patterns to anchor material and sonic decisions.`,
+    evidenceSummary: `Fallback output — live LLM was unavailable. Strategy: ${strategy.title}. A live LLM pass is required to produce the specific F&B, programming, and atmosphere recommendations.`,
+  };
+}
+
+export function fallbackPlaceProfile(project: Project, snapshot: Pick<AnalysisSnapshot, 'qlooContext' | 'locationContext'>): PlaceProfile {
+  const place = locLabel(project);
+  const pois = snapshot.locationContext?.pois || [];
+  const affinities = snapshot.qlooContext?.affinities || [];
+  return {
+    placeIdentity: `${place} — location character and role in the city require live investigation. Available POI count: ${pois.length}. This is a structural fallback, not a place analysis.`,
+    communityProfile: `Audience brief: ${audienceLine(project)}. Qloo evidence available: ${affinities.length} scored affinities. A live LLM pass is required to synthesise these into a meaningful community profile.`,
+    culturalAssets: pois.filter((p) => ['museum', 'gallery', 'library', 'theatre', 'studio', 'market'].some((k) => (p.category || '').toLowerCase().includes(k))).map((p) => p.name).slice(0, 6),
+    commercialSupply: pois.length
+      ? `${pois.length} nearby businesses observed. Dominant categories: ${(snapshot.locationContext?.pois || []).slice(0, 4).map((p) => p.category).filter(Boolean).join(', ') || 'mixed'}. This is supply inventory, not preference data.`
+      : `Local commercial data for ${place} is sparse. Commercial supply analysis is inconclusive.`,
+    behaviouralSignals: `Behavioural inference from Qloo: ${affinities.length} scored affinities available. A live LLM pass is required to interpret these as place-use signals.`,
+    unmetNeeds: ['Needs analysis requires live LLM synthesis of Qloo evidence against local commercial supply.'],
+    evidenceQuality: snapshot.qlooContext?.insufficient ? 'insufficient' : snapshot.locationContext?.evidenceQuality || 'moderate',
+  };
 }

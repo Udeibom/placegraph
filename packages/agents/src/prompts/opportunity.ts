@@ -12,6 +12,25 @@ If mode is DISCOVER:
 - Generate three genuinely different opportunity types. They should be different in nature, not just variations of the same category.
 - For each opportunity, explicitly state: what cultural evidence supports it, which audience segment it primarily serves, why it fits this specific location, and what is currently absent that makes it viable.
 
+OPERATOR TYPE FRAMING — apply this on top of the mode rules above:
+
+If operator type is "retail":
+- Frame opportunities as PRODUCT CATEGORY AND FORMAT decisions, not spatial briefs.
+- "Alignment" = a product category already culturally readable in this neighbourhood.
+- "Whitespace" = a category culturally desired (Qloo evidence) but not commercially represented locally.
+- "Destination" = a format or product specialisation that would draw shoppers from beyond the immediate area.
+- The "why" for each opportunity must explain what makes this category or format the right retail decision here.
+
+If operator type is "operator":
+- Frame opportunities as EXPERIENCE PROGRAMMING AND ACTIVATION decisions.
+- "Alignment" = programming types already culturally established in this neighbourhood.
+- "Whitespace" = experience types the audience has cultural relationships with but cannot access locally.
+- "Destination" = a programming model or tenant mix that would draw visitors from beyond the immediate area.
+- The "why" must explain what makes this programming approach the right facility decision here.
+
+If operator type is "hospitality" or "developer", or no operator type is set:
+- Use standard framing (spatial, experiential, and investment-decision language).
+
 You are analyzing cultural opportunities for a commercial space project.
 
 Project:

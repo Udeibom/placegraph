@@ -49,8 +49,10 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     }>;
-    projectType: z.ZodEnum<["restaurant", "hotel", "retail", "bar", "cafe", "office", "mixed", "hospitality", "other"]>;
-    businessType: z.ZodOptional<z.ZodString>;
+    mode: z.ZodDefault<z.ZodEnum<["evaluate", "discover"]>>;
+    projectType: z.ZodDefault<z.ZodEnum<["restaurant", "hotel", "retail", "bar", "cafe", "office", "mixed", "hospitality", "other"]>>;
+    businessType: z.ZodDefault<z.ZodString>;
+    operatorType: z.ZodOptional<z.ZodEnum<["developer", "hospitality", "retail", "operator"]>>;
     objective: z.ZodString;
     investmentIntent: z.ZodOptional<z.ZodString>;
     budgetRange: z.ZodOptional<z.ZodString>;
@@ -98,7 +100,9 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     };
+    mode: "evaluate" | "discover";
     projectType: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other";
+    businessType: string;
     objective: string;
     audiences: {
         name: string;
@@ -110,7 +114,7 @@ export declare const ProjectSchema: z.ZodObject<{
         type: "number" | "boolean" | "text";
         key: string;
     }[];
-    businessType?: string | undefined;
+    operatorType?: "retail" | "hospitality" | "developer" | "operator" | undefined;
     investmentIntent?: string | undefined;
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
@@ -129,10 +133,12 @@ export declare const ProjectSchema: z.ZodObject<{
         city?: string | undefined;
         neighborhood?: string | undefined;
     };
-    projectType: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other";
     objective: string;
     status?: "draft" | "analyzing" | "strategizing" | "designing" | "review" | "complete" | undefined;
+    mode?: "evaluate" | "discover" | undefined;
+    projectType?: "restaurant" | "hotel" | "retail" | "bar" | "cafe" | "office" | "mixed" | "hospitality" | "other" | undefined;
     businessType?: string | undefined;
+    operatorType?: "retail" | "hospitality" | "developer" | "operator" | undefined;
     investmentIntent?: string | undefined;
     budgetRange?: string | undefined;
     floorArea?: string | undefined;
