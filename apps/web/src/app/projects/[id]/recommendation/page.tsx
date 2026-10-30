@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PipelineNav } from '@/components/PipelineNav';
 import { PipelineRunner } from '@/components/PipelineRunner';
 import { EvidenceQuality } from '@/components/EvidenceQuality';
+import { DecisionIntelligence } from '@/components/DecisionIntelligence';
 import { useProject } from '@/components/ProjectView';
 import { useStream } from '@/lib/useStream';
 import type { ProjectBundle } from '@/lib/api';
@@ -147,14 +148,6 @@ function WinnerPanel({
         <span className={DIRECTION_BADGE[strategy.direction] ?? 'pg-badge pg-badge-neutral'}>
           {strategy.direction}
         </span>
-        {allowConfidentRecommendation && typeof strategy.evaluationScore === 'number' && (
-          <span style={{
-            marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600,
-            color: accentColor, opacity: 0.9,
-          }}>
-            Cultural fit {strategy.evaluationScore}/10
-          </span>
-        )}
       </div>
 
       {/* Main content */}
@@ -191,7 +184,7 @@ function WinnerPanel({
             fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.1em', color: 'var(--qloo)', marginBottom: '0.5rem',
           }}>
-            Why Qloo changed this recommendation
+            What the Qloo evidence shows — and what it does not prove
           </p>
 
           {qlooThesis && (
@@ -287,10 +280,10 @@ function WinnerPanel({
             />
           ) : null}
 
-          {(strategy.qlooChangedDecision || strategy.qlooEvidenceSummary) && (
+          {strategy.qlooEvidenceSummary && (
             <SignalCard
-              question="What relationships changed the recommendation?"
-              answer={strategy.qlooChangedDecision ?? strategy.qlooEvidenceSummary ?? ''}
+              question="Which Qloo relationships support this direction, and where does that support stop?"
+              answer={strategy.qlooEvidenceSummary}
               color="var(--qloo)"
               bg="var(--qloo-bg)"
             />
@@ -321,11 +314,16 @@ function WinnerPanel({
         <button
           type="button"
           onClick={() => onProceed(strategy.id)}
-          disabled={busy}
+          disabled={busy || !allowConfidentRecommendation}
           className="pg-btn pg-btn-lg"
           style={{ marginRight: '0.75rem' }}
+          title={!allowConfidentRecommendation ? 'Spatial translation requires evidence that passes the gate.' : undefined}
         >
-          {busy ? 'Building spatial translation…' : 'Proceed to spatial translation →'}
+          {busy
+            ? 'Building spatial translation…'
+            : allowConfidentRecommendation
+              ? 'Proceed to spatial translation →'
+              : 'Spatial translation blocked by evidence gate'}
         </button>
       </div>
     </div>
@@ -431,11 +429,6 @@ function AlternativeCard({ strategy, rank }: { strategy: Strategy; rank: number 
               <span className={DIRECTION_BADGE[strategy.direction] ?? 'pg-badge pg-badge-neutral'}>
                 {strategy.direction}
               </span>
-              {typeof strategy.evaluationScore === 'number' && (
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted)', marginLeft: '0.25rem' }}>
-                  {strategy.evaluationScore}/10
-                </span>
-              )}
             </div>
             <h3 style={{
               fontFamily: '"Libre Baskerville", Georgia, serif',
@@ -839,11 +832,8 @@ export default function RecommendationPage() {
   const canDiscover = evidenceSummary?.canDiscover ?? true;
   const canShowDirection = canRecommend || canDiscover;
 
-  // The recommended direction is the one with the highest evaluationScore,
-  // or the first strategy if scores are absent.
-  const winner = [...strategies].sort((a, b) =>
-    (b.evaluationScore ?? 0) - (a.evaluationScore ?? 0)
-  )[0];
+  // Strategies are ordered by the analysis; do not invent a fit score to rank them.
+  const winner = strategies[0];
   const alternatives = strategies.filter((s) => s.id !== winner.id);
 
   const currentSelectedId = selectedId ?? analysis.selectedStrategyId ?? null;
@@ -856,13 +846,10 @@ export default function RecommendationPage() {
   // Qloo thesis — one canonical string shown once
   const qlooThesis = analysis.qlooContext?.culturalThesis ?? '';
 
-  // Counterfactual bullets: use persisted counterfactual if available, otherwise
-  // fall back to the winner's qlooChangedDecision field.
+  // Only a persisted controlled comparison may make a difference claim.
   const qlooChangedBullets: string[] = analysis.counterfactual?.whatQlooChanged?.length
     ? analysis.counterfactual.whatQlooChanged.slice(0, 4)
-    : winner.qlooChangedDecision
-      ? [winner.qlooChangedDecision]
-      : [];
+    : [];
 
   function proceed(strategyId: string) {
     setSelectedId(strategyId);
@@ -928,7 +915,7 @@ export default function RecommendationPage() {
             Discovery analysis — no concept was specified
           </p>
           <p style={{ fontSize: '0.9375rem', color: 'var(--ink-2)', lineHeight: 1.65, maxWidth: '48rem' }}>
-            Based on the cultural evidence for this location and audience, PlaceGraph identified three investment directions. These are not evaluations of a proposed concept — they are opportunities the cultural evidence suggests deserve consideration.
+            Based on the cultural evidence for this location and audience, PlaceGraph identified the evidence-qualified investment directions. These are not evaluations of a proposed concept — they are opportunities the cultural evidence suggests deserve consideration.
           </p>
         </div>
       )}
@@ -1086,6 +1073,10 @@ export default function RecommendationPage() {
                 intelligenceMode={analysis.intelligenceMode}
                 qlooSource={analysis.qlooContext?.source}
               />
+            </div>
+
+            <div style={{ marginBottom: '1.75rem' }}>
+              <DecisionIntelligence analysis={analysis} />
             </div>
 
             {/* Qloo cultural patterns */}

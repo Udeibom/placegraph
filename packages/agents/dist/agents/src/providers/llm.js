@@ -1,5 +1,35 @@
+export function estimateTokens(text) {
+    return Math.ceil(text.length / 4);
+}
+export function estimateRequestTokens(messages, maxTokens) {
+    return messages.reduce((total, message) => total + estimateTokens(message.content) + 8, 0) + maxTokens;
+}
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+const TOKEN_WINDOW_MS = 60_000;
+const requestHistory = [];
+async function reserveTokenBudget(tokens, limit) {
+    if (process.env.GROQ_TOKEN_THROTTLE === '0')
+        return;
+    let announced = false;
+    while (true) {
+        const now = Date.now();
+        while (requestHistory.length && now - requestHistory[0].at >= TOKEN_WINDOW_MS) {
+            requestHistory.shift();
+        }
+        const used = requestHistory.reduce((total, entry) => total + entry.tokens, 0);
+        if (!requestHistory.length || used + tokens <= limit) {
+            requestHistory.push({ at: now, tokens });
+            return;
+        }
+        const waitMs = Math.max(750, requestHistory[0].at + TOKEN_WINDOW_MS - now + 250);
+        if (!announced) {
+            console.info(`[llm] token budget wait ${Math.ceil(waitMs / 1000)}s (${used}/${limit} tokens in window)`);
+            announced = true;
+        }
+        await sleep(waitMs);
+    }
 }
 function parseResetDuration(value) {
     if (!value)
@@ -22,8 +52,13 @@ function parseResetDuration(value) {
 export class LLMProvider {
     config;
     resolvedModel = null;
+    tokenLimit;
     constructor(config) {
         this.config = config;
+        this.tokenLimit = Number(process.env.GROQ_TOKEN_LIMIT || process.env.GROQ_TPM_LIMIT || 8000);
+    }
+    get requestTokenLimit() {
+        return this.tokenLimit;
     }
     get available() {
         return Boolean(this.config.apiKey);
@@ -40,24 +75,47 @@ export class LLMProvider {
     }
     async complete(messages, opts) {
         if (!this.config.apiKey) {
-            return { content: '', model: this.config.model };
+            return {
+                content: '',
+                model: this.config.model,
+                failure: {
+                    kind: 'authentication',
+                    message: 'No LLM API key is configured.',
+                    model: this.config.model,
+                    retryable: false
+                }
+            };
         }
-        const maxTokens = Math.min(opts?.maxTokens ?? 6000, 4000);
+        const maxTokens = Math.max(256, Math.min(opts?.maxTokens ?? 2200, 4000));
         const candidates = Array.from(new Set([
             this.resolvedModel,
             this.config.model,
-            'openai/gpt-oss-20b',
             'openai/gpt-oss-120b',
-            maxTokens <= 1200 ? 'qwen/qwen3.8-27b' : undefined,
+            'openai/gpt-oss-20b',
             'llama-3.3-70b-versatile',
             'llama-3.1-8b-instant'
         ].filter((m) => Boolean(m))));
+        let lastFailure;
         try {
             for (const model of candidates) {
                 let attempt = 0;
                 let requestMaxTokens = maxTokens;
-                while (attempt < 2) {
+                while (attempt < 3) {
                     attempt++;
+                    const estimatedTokens = estimateRequestTokens(messages, requestMaxTokens);
+                    if (estimatedTokens > this.tokenLimit) {
+                        return {
+                            content: '',
+                            model,
+                            failure: {
+                                kind: 'budget',
+                                message: `Estimated request size (${estimatedTokens} tokens) exceeds the configured limit of ${this.tokenLimit}. Reduce prompt or completion size before retrying.`,
+                                model,
+                                retryable: false
+                            }
+                        };
+                    }
+                    await reserveTokenBudget(estimatedTokens, this.tokenLimit);
                     const body = {
                         model,
                         messages,
@@ -67,14 +125,30 @@ export class LLMProvider {
                     if (opts?.json !== false) {
                         body.response_format = { type: 'json_object' };
                     }
-                    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            Authorization: `Bearer ${this.config.apiKey}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(body)
-                    });
+                    let res;
+                    try {
+                        res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                Authorization: `Bearer ${this.config.apiKey}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(body)
+                        });
+                    }
+                    catch (err) {
+                        lastFailure = {
+                            kind: 'upstream',
+                            message: String(err),
+                            model,
+                            retryable: true
+                        };
+                        if (attempt < 3) {
+                            await sleep(attempt * 1000);
+                            continue;
+                        }
+                        break;
+                    }
                     if (res.ok) {
                         const data = await res.json();
                         const resolved = data.model || model;
@@ -92,21 +166,45 @@ export class LLMProvider {
                     }
                     const text = await res.text().catch(() => '');
                     console.warn(`Groq API error (${model}):`, res.status, text.slice(0, 200));
+                    const tooLarge = res.status === 413 ||
+                        text.includes('Request too large') ||
+                        text.includes('reduce the length');
                     const rateLimited = res.status === 429 ||
-                        text.includes('rate limit') ||
-                        text.includes('reduce the length') ||
-                        text.includes('Request too large');
+                        text.includes('rate limit');
+                    const authFailed = res.status === 401 || res.status === 403;
                     const modelUnavailable = res.status === 404 ||
                         text.includes('model_not_found') ||
                         text.includes('does not exist') ||
                         text.includes('do not have access');
+                    lastFailure = {
+                        kind: tooLarge
+                            ? 'budget'
+                            : authFailed
+                                ? 'authentication'
+                                : rateLimited
+                                    ? 'rate_limit'
+                                    : modelUnavailable
+                                        ? 'unavailable'
+                                        : 'upstream',
+                        status: res.status,
+                        message: text.slice(0, 500) || `Groq returned HTTP ${res.status}.`,
+                        model,
+                        retryable: rateLimited || res.status >= 500
+                    };
+                    if (authFailed)
+                        return { content: '', model, failure: lastFailure };
                     if (modelUnavailable)
                         break;
-                    if (!rateLimited)
-                        return { content: '', model };
-                    if (text.includes('reduce the length') || text.includes('Request too large')) {
-                        requestMaxTokens = Math.min(requestMaxTokens, 1800);
+                    if (tooLarge) {
+                        const reduced = Math.max(256, Math.floor(requestMaxTokens / 2));
+                        if (attempt === 1 && estimateRequestTokens(messages, reduced) <= this.tokenLimit) {
+                            requestMaxTokens = reduced;
+                            continue;
+                        }
+                        return { content: '', model, failure: lastFailure };
                     }
+                    if (!rateLimited)
+                        return { content: '', model, failure: lastFailure };
                     if (attempt === 1) {
                         const reset = parseResetDuration(res.headers.get('retry-after')) ??
                             parseResetDuration(res.headers.get('x-ratelimit-reset-tokens')) ??
@@ -119,11 +217,28 @@ export class LLMProvider {
                     break;
                 }
             }
-            return { content: '', model: this.config.model };
+            return {
+                content: '',
+                model: this.config.model,
+                failure: lastFailure || {
+                    kind: 'upstream',
+                    message: 'No LLM model returned a response.',
+                    model: this.config.model,
+                    retryable: false
+                }
+            };
         }
         catch (err) {
-            console.warn('LLM provider error:', err);
-            return { content: '', model: this.config.model };
+            return {
+                content: '',
+                model: this.config.model,
+                failure: {
+                    kind: 'upstream',
+                    message: String(err),
+                    model: this.config.model,
+                    retryable: false
+                }
+            };
         }
     }
     async completeVision(prompt, imageDataUrl) {

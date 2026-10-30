@@ -4,3 +4,7 @@ export * from './experience';
 export * from './architecture';
 export * from './visualization';
 export * from './landscape';
+export * from './retail';
+export * from './operator';
+export * from './hospitality-output';
+export * from './place-investigation';

@@ -1,4 +1,10 @@
-import type { AnalysisSnapshot, EvidenceGate, LocationContext, Project, QlooContext } from '@placegraph/types';
+import type {
+  AnalysisSnapshot,
+  EvidenceGate,
+  LocationContext,
+  Project,
+  QlooContext
+} from '@placegraph/types';
 
 export type IntelligenceMode = EvidenceGate['intelligenceMode'];
 
@@ -19,36 +25,110 @@ export function buildEvidenceGate(opts: {
   project: Project;
 }): EvidenceGate {
   const locationQuality = opts.location?.evidenceQuality || 'insufficient';
-  const qlooQuality: EvidenceGate['qlooQuality'] = !opts.qloo
-    ? 'insufficient'
-    : opts.qloo.insufficient
-      ? 'insufficient'
+  const unresolvedAudiences = (opts.qloo?.audienceResolutions || []).filter(
+    (audience) => audience.status === 'unresolved' || audience.status === 'failed'
+  );
+  const approximateAudiences = (opts.qloo?.audienceResolutions || []).filter(
+    (audience) => audience.status === 'approximate'
+  );
+  const qlooStatus: NonNullable<EvidenceGate['qlooStatus']> = !opts.qloo
+    ? 'missing'
+    : opts.qloo.source === 'failed' || opts.qloo.source === 'unavailable'
+      ? opts.qloo.source === 'failed'
+        ? 'failed'
+        : 'missing'
       : opts.qloo.source === 'live'
-        ? opts.qloo.affinities?.length >= 5
-          ? 'strong'
-          : 'moderate'
-        : opts.qloo.source === 'mixed'
+        ? opts.qloo.insufficient
+          ? 'degraded'
+          : 'ready'
+        : opts.qloo.source === 'mock'
+          ? 'missing'
+          : 'degraded';
+
+  const qlooQuality: EvidenceGate['qlooQuality'] =
+    qlooStatus === 'ready'
+      ? opts.qloo!.affinities.length >= 5
+        ? 'strong'
+        : 'moderate'
+      : qlooStatus === 'degraded'
+        ? opts.qloo?.affinities?.length
           ? 'moderate'
-          : 'insufficient';
+          : 'insufficient'
+        : 'insufficient';
 
   const mode = intelligenceMode({ llmAvailable: opts.llmAvailable, qloo: opts.qloo });
   const warnings: string[] = [];
+  const blocked: string[] = [];
 
   if (!opts.llmAvailable) {
     warnings.push(
       'No Groq key: opportunity, strategy and architecture text is structured fallback, not live agent reasoning.'
     );
   }
-  if (!opts.qloo || opts.qloo.source === 'mock') {
+  if (!opts.qloo) {
+    warnings.push(
+      'No Qloo context was produced. Cultural claims are absent rather than inferred.'
+    );
+    blocked.push('Qloo evidence is missing.');
+  } else if (opts.qloo.source === 'mock') {
     warnings.push(
       'Qloo is in mock mode. Affinities are illustrative cultural relationships, not live graph evidence for this location.'
     );
+    blocked.push('Qloo evidence is illustrative only.');
+  } else if (opts.qloo.source === 'failed' || opts.qloo.source === 'unavailable') {
+    warnings.push(
+      `Qloo is ${opts.qloo.source}. No cultural claims were generated and confident cultural recommendations are blocked.`
+    );
+    blocked.push(
+      opts.qloo.failure?.message ||
+        'Qloo did not return live evidence for this analysis.'
+    );
   } else if (opts.qloo.insufficient) {
     warnings.push('Live Qloo returned thin evidence. Treat cultural relationships as incomplete.');
+    blocked.push('Qloo affinity evidence is thin.');
+  }
+
+  if (unresolvedAudiences.length) {
+    warnings.push(
+      `${unresolvedAudiences.length} audience profile${unresolvedAudiences.length === 1 ? '' : 's'} could not be resolved. Audience-specific claims are gated.`
+    );
+    blocked.push('One or more audience profiles are unresolved.');
+  }
+  if (approximateAudiences.length) {
+    warnings.push(
+      `${approximateAudiences.length} audience profile${approximateAudiences.length === 1 ? '' : 's'} is approximate. Treat audience-specific claims as provisional.`
+    );
   }
   if (locationQuality === 'insufficient') {
     warnings.push('Local commercial inventory is incomplete. Existing-landscape claims are weakly grounded.');
+    blocked.push('Local commercial inventory is incomplete.');
   }
+
+  const locationNote = (opts.qloo?.notes || []).find((note) => note.includes('location resolved as'));
+  const locationResolution = opts.qloo?.locationResolution;
+  const broadScope =
+    locationResolution &&
+    ['region', 'country', 'global', 'unresolved'].includes(locationResolution.scope);
+  if (broadScope) {
+    warnings.push('Qloo location is broader than the site or unresolved. Cultural claims are not locally specific.');
+    blocked.push('Qloo geography is broader than the site or unresolved.');
+  } else if (locationResolution?.resolved) {
+    warnings.push(
+      locationNote ||
+        `Qloo location resolved at ${locationResolution.scope} scope: ${locationResolution.query}.`
+    );
+  } else if (!locationResolution) {
+    const oldBroadNote = (opts.qloo?.notes || []).some((note) =>
+      note.includes('could not resolve a location filter')
+    );
+    if (oldBroadNote) {
+      warnings.push('Qloo location could not be resolved. Cultural claims are not locally specific.');
+      blocked.push('Qloo geography is unresolved.');
+    } else if (locationNote) {
+      warnings.push(locationNote);
+    }
+  }
+
   if (opts.qloo?.notes?.length) warnings.push(...opts.qloo.notes);
   if (opts.location?.notes?.length) warnings.push(...opts.location.notes);
 
@@ -56,6 +136,8 @@ export function buildEvidenceGate(opts: {
     opts.llmAvailable &&
     locationQuality !== 'insufficient' &&
     qlooQuality !== 'insufficient' &&
+    qlooStatus === 'ready' &&
+    blocked.length === 0 &&
     mode !== 'template';
 
   const gate: EvidenceGate = {
@@ -64,47 +146,14 @@ export function buildEvidenceGate(opts: {
     llmAvailable: opts.llmAvailable,
     intelligenceMode: mode,
     allowConfidentRecommendation,
+    qlooStatus,
+    blockedReason: blocked.length ? [...new Set(blocked)].join(' ') : undefined,
+    contractFailure: opts.qloo?.failure,
     warnings: [...new Set(warnings)]
   };
 
-  // Count how many fallback notes were added during Qloo context gathering
-  const seedFallbackCount = (opts.qloo?.notes ?? [])
-    .filter((n: string) =>
-      n.includes('Falling back to location anchor') || n.includes('no locally-relevant seed')
-    ).length;
-
-  const locationIsCityLevel = !!(
-    opts.qloo?.notes?.some((n: string) =>
-      n.toLowerCase().includes('resolved as') &&
-      (n.toLowerCase().includes('united kingdom') ||
-       n.toLowerCase().includes('united states') ||
-       n.toLowerCase().includes('germany') ||
-       n.toLowerCase().includes('france'))
-    )
-  );
-
-  const audienceCount = Object.keys(opts.qloo?.audienceAffinities ?? {}).length;
-
-  if (locationIsCityLevel && gate.qlooQuality === 'strong') {
-    gate.qlooQuality = 'moderate';
-    gate.warnings.push('Qloo location resolved to country level, not neighbourhood. Affinities reflect broad regional taste, not local culture. Treat recommendation as indicative.');
-  }
-
-  if (seedFallbackCount >= 2) {
-    gate.qlooQuality = 'insufficient';
-    gate.warnings.push(`${seedFallbackCount} of ${audienceCount} audience seeds could not be resolved to local entities. Cultural evidence is insufficient for a confident recommendation.`);
-    gate.allowConfidentRecommendation = false;
-  }
-
-  if (seedFallbackCount === 1 && gate.qlooQuality === 'strong') {
-    gate.qlooQuality = 'moderate';
-    gate.warnings.push('One audience seed fell back to the location anchor. Cultural evidence for that audience segment is approximate.');
-  }
-
-  gate.warnings = [...new Set(gate.warnings)];
-
   if (opts.qloo && opts.location) {
-    gate.evidenceSummary = buildEvidenceSummary(gate, opts.qloo, opts.location, opts.project);
+    gate.evidenceSummary = buildEvidenceSummary(gate, opts.qloo, opts.location);
   }
 
   return gate;
@@ -113,54 +162,69 @@ export function buildEvidenceGate(opts: {
 function buildEvidenceSummary(
   gate: EvidenceGate,
   qlooContext: QlooContext,
-  locationContext: LocationContext,
-  project: Project
+  locationContext: LocationContext
 ): EvidenceGate['evidenceSummary'] {
   const missing: string[] = [];
   const resolve: string[] = [];
+  const audiences = qlooContext.audienceResolutions || [];
 
-  // Audience seeds
-  const seedFallbacks = (qlooContext.notes ?? []).filter((n) =>
-    n.includes('Falling back to location anchor') || n.includes('no locally-relevant seed')
+  const unresolved = audiences.filter(
+    (audience) => audience.status === 'unresolved' || audience.status === 'failed'
   );
-  if (seedFallbacks.length > 0) {
-    missing.push(`Cultural profile is incomplete for ${seedFallbacks.length} audience segment(s). The system used location-level data instead of audience-specific cultural signals.`);
-    resolve.push('Provide more specific audience descriptions that name real places, brands, or activities this audience frequents. For example: "regulars at Netil Market and Brilliant Corners" is more resolvable than "local residents".');
+  if (unresolved.length) {
+    missing.push(
+      `Audience-specific evidence is missing for ${unresolved.length} segment${unresolved.length === 1 ? '' : 's'}: ${unresolved.map((audience) => audience.name).join(', ')}.`
+    );
+    resolve.push(
+      'Replace vague audience descriptions with Qloo taxonomy terms or real places, brands, and activities those audiences frequent.'
+    );
   }
 
-  // Location precision
-  const countryLevel = (qlooContext.notes ?? []).some((n) =>
-    n.toLowerCase().includes('resolved as') &&
-    (n.toLowerCase().includes('united kingdom') || n.toLowerCase().includes('united states'))
-  );
-  if (countryLevel) {
-    missing.push('Qloo location resolved to country level. Affinities reflect broad national taste, not neighbourhood culture.');
-    resolve.push('Add the specific neighbourhood name and city to the location field. If the neighbourhood name is unusual, add a nearby landmark or the nearest major street.');
+  if (gate.qlooStatus === 'failed' || gate.qlooStatus === 'missing') {
+    missing.push(
+      qlooContext.failure?.message ||
+        'No live Qloo evidence was available. Cultural claims are absent, not inferred.'
+    );
+    resolve.push(
+      'Configure a valid Qloo API key for the intended environment and retry. Production must use QLOO_API_BASE_URL explicitly.'
+    );
   }
 
-  // POI coverage
-  const poiWarning = (locationContext.notes ?? []).some((n) =>
-    n.includes('No bars or pubs found') || n.includes('Overpass mirrors were unavailable')
-  );
-  if (poiWarning) {
-    missing.push('Local commercial environment data is incomplete. The absence of a category in the results may reflect data coverage, not actual absence.');
-    resolve.push('The system will retry with Nominatim fallback data, but commercial gap claims should be independently verified before treating them as investment evidence.');
+  if (gate.qlooStatus === 'degraded') {
+    missing.push('Qloo returned live but thin or approximate evidence.');
+    resolve.push('Try a more specific anchor, additional resolvable audiences, and verify local supply.');
   }
 
-  // Qloo insufficiency
+  if (gate.qlooQuality === 'insufficient') {
+    missing.push('No scored Qloo affinity evidence supports a cultural recommendation.');
+    resolve.push('Add resolvable audience descriptions and a known nearby place anchor, then retry.');
+  }
+
+  const broadScope = qlooContext.locationResolution &&
+    ['region', 'country', 'global', 'unresolved'].includes(qlooContext.locationResolution.scope);
+  if (broadScope) {
+    missing.push('Qloo location resolved to a broad or unresolved geography. Affinities are not neighbourhood-specific.');
+    resolve.push('Add the neighbourhood and city, and verify the resolved Qloo locality.');
+  }
+
+  if (locationContext.evidenceQuality === 'insufficient') {
+    missing.push('Local commercial environment data is incomplete. Absence of a category may reflect coverage, not demand.');
+    resolve.push('Verify local supply independently before treating a gap as evidence.');
+  }
+
   if (qlooContext.insufficient) {
-    missing.push('Qloo returned no scored affinities for this location and audience combination. Cultural evidence is absent.');
-    resolve.push('Try a more prominent nearby location as the anchor (e.g. the nearest major street or district rather than a specific address). If this is a genuinely low-signal location, cultural evidence may not be available.');
+    missing.push('Qloo evidence is insufficient for confident cultural claims.');
+    resolve.push('Retry with a stronger place anchor and more resolvable audience profiles.');
   }
 
   const canRecommend = gate.allowConfidentRecommendation && missing.length === 0;
-  const canDiscover = gate.qlooQuality !== 'insufficient' && missing.length <= 1;
+  const canDiscover = gate.qlooStatus !== 'failed' && gate.qlooStatus !== 'missing' && missing.length <= 2;
 
   return {
     canRecommend,
     canDiscover,
-    missingEvidence: missing,
-    whatWouldResolveIt: resolve,
+    missingEvidence: [...new Set(missing)],
+    whatWouldResolveIt: [...new Set(resolve)]
   };
 }
 
@@ -168,7 +232,9 @@ export function applyEvidenceGateToSnapshot(snapshot: AnalysisSnapshot, gate: Ev
   const extra = gate.allowConfidentRecommendation
     ? []
     : [
-        'Evidence is not strong enough for a confident build recommendation. This is a hypothesis for professional review.'
+        gate.blockedReason
+          ? `Evidence gate: ${gate.blockedReason} This is a hypothesis for professional review, not a confident recommendation.`
+          : 'Evidence is not strong enough for a confident build recommendation. This is a hypothesis for professional review.'
       ];
 
   return {
@@ -177,11 +243,12 @@ export function applyEvidenceGateToSnapshot(snapshot: AnalysisSnapshot, gate: Ev
     intelligenceMode: gate.intelligenceMode,
     opportunities: snapshot.opportunities.map((op) => ({
       ...op,
+      eligible: op.eligible !== false && gate.allowConfidentRecommendation,
       uncertainties: [...new Set([...(op.uncertainties || []), ...extra])]
     })),
-    strategies: snapshot.strategies.map((s) => ({
-      ...s,
-      uncertainties: [...new Set([...(s.uncertainties || []), ...extra])]
+    strategies: snapshot.strategies.map((strategy) => ({
+      ...strategy,
+      uncertainties: [...new Set([...(strategy.uncertainties || []), ...extra])]
     }))
   };
 }

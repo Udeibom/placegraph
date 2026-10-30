@@ -1,4 +1,4 @@
-import { QlooAffinity, QlooEntity } from './client';
+import type { QlooAffinity, QlooAudience, QlooEntity } from './client';
 
 type Profile = {
   entities: QlooEntity[];
@@ -89,6 +89,24 @@ export class QlooMockClient {
 
   async getAffinities(entity: string): Promise<QlooAffinity[]> {
     return profileFor(String(entity)).affinities;
+  }
+
+  async searchAudiences(query: string): Promise<QlooAudience[]> {
+    const h = hash(query);
+    return [
+      {
+        entityId: `mock_aud_${h}`,
+        id: `urn:audience:mock:${h}`,
+        name: query,
+        type: 'urn:audience:mock',
+        parents: [],
+        tags: ['mock']
+      }
+    ];
+  }
+
+  async getAudienceAffinities(audienceIds: string[]): Promise<QlooAffinity[]> {
+    return profileFor(audienceIds.join(' ')).affinities;
   }
 
   async getCrossDomain(context: { entities: string[]; audiences?: string[] }): Promise<any> {

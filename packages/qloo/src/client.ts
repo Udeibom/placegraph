@@ -1,14 +1,18 @@
 export interface QlooConfig {
   baseUrl: string;
   apiKey: string;
+  timeoutMs?: number;
+  cacheTtlMs?: number;
 }
 
 export interface QlooEntity {
   id?: string;
+  uuid?: string;
+  urn?: string;
   name: string;
   type?: string;
-  domain?: string;
   subtype?: string;
+  domain?: string;
   city?: string;
   country?: string;
   popularity?: number;
@@ -17,6 +21,8 @@ export interface QlooEntity {
 export interface QlooAffinity {
   target: string;
   targetId?: string;
+  uuid?: string;
+  urn?: string;
   strength: number;
   domain?: string;
   relation?: string;
@@ -24,14 +30,83 @@ export interface QlooAffinity {
   description?: string;
   city?: string;
   keywords?: string[];
+  seedCount?: number;
+}
+
+export interface QlooAudience {
+  entityId: string;
+  id?: string;
+  name: string;
+  type?: string;
+  disambiguation?: string;
+  parents: string[];
+  tags: string[];
 }
 
 export interface QlooRequestOptions {
   limit?: number;
+  take?: number;
   domains?: string[];
+  types?: string[];
   type?: string;
   location?: string;
 }
+
+export type QlooErrorKind =
+  | 'missing_configuration'
+  | 'authentication'
+  | 'authorization'
+  | 'invalid_request'
+  | 'rate_limit'
+  | 'upstream'
+  | 'parse'
+  | 'environment';
+
+export class QlooApiError extends Error {
+  readonly kind: QlooErrorKind;
+  readonly endpoint?: string;
+  readonly status?: number;
+  readonly retryable: boolean;
+  readonly environment?: string;
+
+  constructor(opts: {
+    kind: QlooErrorKind;
+    message: string;
+    endpoint?: string;
+    status?: number;
+    retryable?: boolean;
+    environment?: string;
+  }) {
+    super(opts.message);
+    this.name = 'QlooApiError';
+    this.kind = opts.kind;
+    this.endpoint = opts.endpoint;
+    this.status = opts.status;
+    this.retryable = opts.retryable ?? false;
+    this.environment = opts.environment;
+  }
+}
+
+const SEARCH_TYPES = new Set([
+  'urn:entity:actor',
+  'urn:entity:artist',
+  'urn:entity:brand',
+  'urn:entity:movie',
+  'urn:entity:person',
+  'urn:entity:place',
+  'urn:entity:podcast',
+  'urn:entity:tv_show'
+]);
+
+const TRENDING_TYPES = new Set([
+  'urn:entity:actor',
+  'urn:entity:artist',
+  'urn:entity:brand',
+  'urn:entity:movie',
+  'urn:entity:person',
+  'urn:entity:podcast',
+  'urn:entity:tv_show'
+]);
 
 function entityName(raw: any): string {
   return raw?.name || raw?.properties?.name || raw?.title || 'Unknown';
@@ -41,8 +116,13 @@ function entityId(raw: any): string | undefined {
   return raw?.entity_id || raw?.id || raw?.uuid;
 }
 
+function entityUrn(raw: any): string | undefined {
+  const id = raw?.id;
+  return typeof id === 'string' && id.startsWith('urn:') ? id : undefined;
+}
+
 function affinityScore(raw: any): number | undefined {
-  const q = raw?.query?.affinity ?? raw?.affinity ?? raw?.score;
+  const q = raw?.query?.affinity;
   return typeof q === 'number' && Number.isFinite(q) ? q : undefined;
 }
 
@@ -88,13 +168,53 @@ function domainFromType(type?: string): string {
   return type.replace('urn:entity:', '') || 'general';
 }
 
+function normalizeId(id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  return id.startsWith('urn:') ? id : id.toLowerCase();
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function qlooEnvironment(baseUrl: string): string {
+  try {
+    const host = new URL(baseUrl).host;
+    if (host === 'api.qloo.com') return 'production';
+    if (host === 'hackathon.api.qloo.com') return 'hackathon';
+    return host;
+  } catch {
+    return 'invalid';
+  }
+}
+
+function classifyStatus(status: number): { kind: QlooErrorKind; retryable: boolean } {
+  if (status === 401) return { kind: 'authentication', retryable: false };
+  if (status === 403) return { kind: 'authorization', retryable: false };
+  if (status === 400 || status === 404 || status === 422) {
+    return { kind: 'invalid_request', retryable: false };
+  }
+  if (status === 429) return { kind: 'rate_limit', retryable: true };
+  if (status >= 500) return { kind: 'upstream', retryable: true };
+  return { kind: 'upstream', retryable: false };
+}
+
 export class QlooClient {
   private baseUrl: string;
   private apiKey: string;
+  private timeoutMs: number;
+  private cacheTtlMs: number;
+  private cache = new Map<string, { expires: number; data: any }>();
 
   constructor(config: QlooConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.apiKey = config.apiKey;
+    this.timeoutMs = config.timeoutMs ?? 12000;
+    this.cacheTtlMs = config.cacheTtlMs ?? 5 * 60 * 1000;
+  }
+
+  get environment(): string {
+    return qlooEnvironment(this.baseUrl);
   }
 
   private headers() {
@@ -104,184 +224,481 @@ export class QlooClient {
     };
   }
 
-  private async get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    for (const [k, v] of Object.entries(params)) {
-      if (v === undefined || v === '') continue;
-      url.searchParams.set(k, String(v));
+  private cacheKey(path: string, params: Record<string, string>): string {
+    const ordered = Object.keys(params)
+      .sort()
+      .map((key) => `${key}=${params[key]}`)
+      .join('&');
+    return `${this.environment}|${this.baseUrl}|${path}|${ordered}`;
+  }
+
+  private async get<T>(
+    path: string,
+    params: Record<string, string | number | boolean | undefined> = {},
+    retry = true
+  ): Promise<T> {
+    const clean: Record<string, string> = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === '') continue;
+      clean[key] = String(value);
     }
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: this.headers(),
-      signal: AbortSignal.timeout(12000)
-    });
+
+    const key = this.cacheKey(path, clean);
+    const cached = this.cache.get(key);
+    if (cached && cached.expires > Date.now()) return cached.data as T;
+
+    const url = new URL(`${this.baseUrl}${path}`);
+    for (const [k, v] of Object.entries(clean)) url.searchParams.set(k, v);
+
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: this.headers(),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+    } catch (err) {
+      throw new QlooApiError({
+        kind: 'upstream',
+        endpoint: path,
+        retryable: true,
+        environment: this.environment,
+        message: `Qloo request failed before a response: ${String(err)}`
+      });
+    }
+
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`Qloo API error ${res.status}: ${text.slice(0, 300)}`);
+      const { kind, retryable } = classifyStatus(res.status);
+      if (retryable && retry) {
+        await sleep(res.status === 429 ? 750 : 250);
+        return this.get<T>(path, params, false);
+      }
+      throw new QlooApiError({
+        kind,
+        endpoint: path,
+        status: res.status,
+        retryable,
+        environment: this.environment,
+        message: `Qloo API error ${res.status}: ${text.slice(0, 300)}`
+      });
     }
-    return res.json();
+
+    let data: T;
+    try {
+      data = (await res.json()) as T;
+    } catch (err) {
+      throw new QlooApiError({
+        kind: 'parse',
+        endpoint: path,
+        status: res.status,
+        environment: this.environment,
+        message: `Qloo returned invalid JSON: ${String(err)}`
+      });
+    }
+
+    if (this.cacheTtlMs > 0) {
+      this.cache.set(key, { expires: Date.now() + this.cacheTtlMs, data });
+    }
+    return data;
+  }
+
+  private parseEnvelope(data: any, path: string, keys: string[]): any {
+    if (!data || typeof data !== 'object' || data.success === false) {
+      throw new QlooApiError({
+        kind: 'parse',
+        endpoint: path,
+        environment: this.environment,
+        message: `Qloo response did not contain a successful envelope for ${path}.`
+      });
+    }
+    let cursor: any = data;
+    for (const key of keys) {
+      if (!cursor || typeof cursor !== 'object' || !(key in cursor)) {
+        throw new QlooApiError({
+          kind: 'parse',
+          endpoint: path,
+          environment: this.environment,
+          message: `Qloo response missing ${keys.join('.')} for ${path}.`
+        });
+      }
+      cursor = cursor[key];
+    }
+    if (!Array.isArray(cursor)) {
+      throw new QlooApiError({
+        kind: 'parse',
+        endpoint: path,
+        environment: this.environment,
+        message: `Qloo response ${keys.join('.')} was not an array for ${path}.`
+      });
+    }
+    return cursor;
   }
 
   async searchEntities(query: string, opts: QlooRequestOptions = {}): Promise<QlooEntity[]> {
-    try {
-      const data = await this.get<any>('/search', {
-        query,
-        limit: opts.limit || 10,
-        type: opts.type
-      });
-      const results = data.results || data.entities || data.data || [];
-      return (Array.isArray(results) ? results : []).map((r: any) => ({
-        id: entityId(r),
-        name: entityName(r),
-        type: r.subtype || r.type,
-        domain: domainFromType(r.subtype || r.type),
-        city: r?.properties?.geocode?.city,
-        country: r?.properties?.geocode?.country,
-        popularity: typeof r?.popularity === 'number' ? r.popularity : undefined
-      }));
-    } catch (err) {
-      console.warn('Qloo searchEntities failed:', err);
-      return [];
+    const take = opts.take ?? opts.limit ?? 10;
+    const types = opts.types?.length ? opts.types : opts.type ? [opts.type] : undefined;
+    if (types) {
+      for (const type of types) {
+        if (!SEARCH_TYPES.has(type)) {
+          throw new QlooApiError({
+            kind: 'invalid_request',
+            endpoint: '/v2/search',
+            environment: this.environment,
+            message: `Unsupported Qloo search type: ${type}`
+          });
+        }
+      }
     }
+    const data = await this.get<any>('/v2/search', {
+      query,
+      types: types?.join(','),
+      take
+    });
+    const rows = this.parseEnvelope(data, '/v2/search', ['results']);
+    if (rows.length > take) {
+      throw new QlooApiError({
+        kind: 'parse',
+        endpoint: '/v2/search',
+        environment: this.environment,
+        message: `Qloo search returned ${rows.length} rows for take=${take}; refusing a silently ignored parameter contract.`
+      });
+    }
+    return rows.map((r: any) => this.mapEntity(r));
+  }
+
+  async hydrateEntities(entityIds: string[]): Promise<QlooEntity[]> {
+    if (!entityIds.length) return [];
+    const data = await this.get<any>('/entities', {
+      entity_ids: entityIds.filter(Boolean).join(',')
+    });
+    const rows = this.parseEnvelope(data, '/entities', ['results']);
+    return rows.map((r: any) => this.mapEntity(r));
+  }
+
+  async searchAudiences(query: string, take = 10): Promise<QlooAudience[]> {
+    const data = await this.get<any>('/v2/audiences', {
+      'filter.query': query,
+      take
+    });
+    const rows = this.parseEnvelope(data, '/v2/audiences', ['results', 'audiences']);
+    return rows.map((r: any) => ({
+      entityId: String(r.entity_id || r.id || ''),
+      id: typeof r.id === 'string' && r.id.startsWith('urn:') ? r.id : undefined,
+      name: String(r.name || r.disambiguation || 'Unknown audience'),
+      type: r.type,
+      disambiguation: r.disambiguation,
+      parents: Array.isArray(r.parents) ? r.parents : [],
+      tags: Array.isArray(r.tags) ? r.tags : []
+    })).filter((a: { entityId: string }) => Boolean(a.entityId));
   }
 
   async getInsights(opts: {
     filterType: string;
     entityIds?: string[];
+    tagIds?: string[];
+    demographicsAudienceIds?: string[];
     locationQuery?: string;
     take?: number;
+    explainability?: boolean;
   }): Promise<any[]> {
-    try {
-      const data = await this.get<any>('/v2/insights', {
-        'filter.type': opts.filterType,
-        'signal.interests.entities': opts.entityIds?.filter(Boolean).join(','),
-        'filter.location.query': opts.locationQuery,
-        take: opts.take || 15
+    const take = opts.take ?? 15;
+    const interestEntityIds = (opts.entityIds || []).filter(Boolean);
+    const tagIds = (opts.tagIds || []).filter(Boolean);
+    const audienceIds = (opts.demographicsAudienceIds || []).filter(Boolean);
+
+    if (opts.filterType === 'urn:demographics' && !interestEntityIds.length && !tagIds.length) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/insights',
+        environment: this.environment,
+        message: 'Demographics insights require an interest signal (entity or tag); an audience signal alone returns 400.'
       });
-      if (Array.isArray(data?.results)) return data.results;
-      if (Array.isArray(data?.results?.entities)) return data.results.entities;
-      if (Array.isArray(data?.entities)) return data.entities;
-      if (Array.isArray(data?.data)) return data.data;
-      return [];
-    } catch (err) {
-      console.warn('Qloo getInsights failed:', err);
-      return [];
     }
+    if (opts.filterType === 'urn:heatmap' && !opts.locationQuery) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/insights',
+        environment: this.environment,
+        message: 'Heatmap insights require filter.location.query.'
+      });
+    }
+    if (opts.filterType === 'urn:heatmap' && !interestEntityIds.length && !tagIds.length) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/insights',
+        environment: this.environment,
+        message: 'Heatmap insights require at least one valid signal.'
+      });
+    }
+
+    const data = await this.get<any>('/v2/insights', {
+      'filter.type': opts.filterType,
+      'signal.interests.entities': interestEntityIds.join(','),
+      'signal.interests.tags': tagIds.join(','),
+      'signal.demographics.audiences': audienceIds.join(','),
+      'filter.location.query': opts.locationQuery,
+      take,
+      'feature.explainability': opts.explainability === false ? 'false' : 'true'
+    });
+    return this.parseEnvelope(data, '/v2/insights', ['results', 'entities']);
   }
 
-  async getAffinities(entity: string | { id?: string; name: string }, opts: QlooRequestOptions = {}): Promise<QlooAffinity[]> {
-    try {
-      const entityNameOrObj = typeof entity === 'string' ? entity : entity.name;
-      const id = typeof entity === 'string' ? undefined : entity.id;
-      let entityId = id;
-      if (!entityId) {
-        const found = await this.searchEntities(entityNameOrObj, { limit: 3, type: opts.type });
-        entityId = found[0]?.id;
-      }
-      if (!entityId) return [];
-
-      const types = opts.domains?.length
-        ? opts.domains
-        : ['urn:entity:place', 'urn:entity:brand', 'urn:entity:artist'];
-
-      const batches = await Promise.all(
-        types.map((filterType) =>
-          this.getInsights({
-            filterType,
-            entityIds: [entityId!],
-            locationQuery: opts.location,
-            take: opts.limit || 12
-          })
-        )
-      );
-
-      const affinities: QlooAffinity[] = [];
-      for (let i = 0; i < batches.length; i++) {
-        const batch = Array.isArray(batches[i]) ? batches[i] : [];
-        for (const row of batch) {
-          const strength = affinityScore(row);
-          if (strength === undefined) continue;
-          affinities.push({
-            target: entityName(row),
-            targetId: entityIdFromRow(row),
-            strength,
-            domain: domainFromType(types[i]),
-            relation: 'affinity',
-            genre: genreFromRow(row),
-            description: descriptionFromRow(row),
-            city: cityFromRow(row),
-            keywords: keywordsFromRow(row)
-          });
-        }
-      }
-      return affinities;
-    } catch (err) {
-      console.warn('Qloo getAffinities failed:', err);
-      return [];
+  async getAffinities(
+    entity: string | { id?: string; name: string },
+    opts: QlooRequestOptions = {}
+  ): Promise<QlooAffinity[]> {
+    const entityNameOrObj = typeof entity === 'string' ? entity : entity.name;
+    let id = typeof entity === 'string' ? undefined : entity.id;
+    if (!id) {
+      const found = await this.searchEntities(entityNameOrObj, {
+        take: 3,
+        type: opts.type
+      });
+      id = found[0]?.id;
     }
+    if (!id) return [];
+
+    const types = opts.domains?.length
+      ? opts.domains
+      : ['urn:entity:place', 'urn:entity:brand', 'urn:entity:artist'];
+
+    const batches = await Promise.all(
+      types.map((filterType) =>
+        this.getInsights({
+          filterType,
+          entityIds: [id!],
+          locationQuery: opts.location,
+          take: opts.take ?? opts.limit ?? 12
+        })
+      )
+    );
+
+    const affinities: QlooAffinity[] = [];
+    for (let i = 0; i < batches.length; i++) {
+      for (const row of batches[i]) {
+        const strength = affinityScore(row);
+        if (strength === undefined) continue;
+        affinities.push({
+          target: entityName(row),
+          targetId: entityId(row),
+          uuid: typeof entityId(row) === 'string' && !entityId(row)!.startsWith('urn:') ? entityId(row) : undefined,
+          urn: entityUrn(row),
+          strength,
+          domain: domainFromType(types[i]),
+          relation: 'affinity',
+          genre: genreFromRow(row),
+          description: descriptionFromRow(row),
+          city: cityFromRow(row),
+          keywords: keywordsFromRow(row)
+        });
+      }
+    }
+    return affinities;
+  }
+
+  async getAudienceAffinities(
+    audienceIds: string[],
+    opts: { locationQuery?: string; take?: number; domains?: string[] } = {}
+  ): Promise<QlooAffinity[]> {
+    const types = opts.domains?.length
+      ? opts.domains
+      : ['urn:entity:place'];
+    const batches = await Promise.all(
+      types.map((filterType) =>
+        this.getInsights({
+          filterType,
+          demographicsAudienceIds: audienceIds,
+          locationQuery: opts.locationQuery,
+          take: opts.take ?? 12
+        })
+      )
+    );
+    const affinities: QlooAffinity[] = [];
+    for (let i = 0; i < batches.length; i++) {
+      for (const row of batches[i]) {
+        const strength = affinityScore(row);
+        if (strength === undefined) continue;
+        affinities.push({
+          target: entityName(row),
+          targetId: entityId(row),
+          uuid: typeof entityId(row) === 'string' && !entityId(row)!.startsWith('urn:') ? entityId(row) : undefined,
+          urn: entityUrn(row),
+          strength,
+          domain: domainFromType(types[i]),
+          relation: 'affinity',
+          genre: genreFromRow(row),
+          description: descriptionFromRow(row),
+          city: cityFromRow(row),
+          keywords: keywordsFromRow(row)
+        });
+      }
+    }
+    return affinities;
   }
 
   async getCrossDomain(
     context: { entities: string[]; audiences?: string[]; location?: string },
     opts: QlooRequestOptions = {}
   ): Promise<any> {
-    try {
-      const searches = await Promise.all(
-        context.entities.slice(0, 4).map((q) => this.searchEntities(q, { limit: 2 }))
-      );
-      const ids = searches.flat().map((e) => e.id).filter(Boolean) as string[];
-      if (!ids.length) return { results: [], source: 'live' };
+    const searches = await Promise.all(
+      context.entities.slice(0, 4).map((q) => this.searchEntities(q, { take: 2 }))
+    );
+    const ids = searches.flat().map((e) => e.id).filter(Boolean) as string[];
+    if (!ids.length) return { results: { places: [], brands: [], artists: [] }, entityIds: [], source: 'live' };
 
-      const [places, brands, artists] = await Promise.all([
-        this.getInsights({
-          filterType: 'urn:entity:place',
-          entityIds: ids.slice(0, 3),
-          locationQuery: context.location,
-          take: opts.limit || 15
-        }),
-        this.getInsights({
-          filterType: 'urn:entity:brand',
-          entityIds: ids.slice(0, 3),
-          take: 10
-        }),
-        this.getInsights({
-          filterType: 'urn:entity:artist',
-          entityIds: ids.slice(0, 3),
-          take: 10
-        })
-      ]);
+    const [places, brands, artists] = await Promise.all([
+      this.getInsights({
+        filterType: 'urn:entity:place',
+        entityIds: ids.slice(0, 3),
+        locationQuery: context.location,
+        take: opts.take ?? opts.limit ?? 15
+      }),
+      this.getInsights({
+        filterType: 'urn:entity:brand',
+        entityIds: ids.slice(0, 3),
+        take: 10
+      }),
+      this.getInsights({
+        filterType: 'urn:entity:artist',
+        entityIds: ids.slice(0, 3),
+        take: 10
+      })
+    ]);
 
-      return {
-        results: {
-          places: scoredRows(places, 'place'),
-          brands: scoredRows(brands, 'brand'),
-          artists: scoredRows(artists, 'music')
-        },
-        entityIds: ids,
-        source: 'live'
-      };
-    } catch (err) {
-      console.warn('Qloo getCrossDomain failed:', err);
-      return { results: [], source: 'live', error: String(err) };
+    return {
+      results: {
+        places: scoredRows(places, 'place'),
+        brands: scoredRows(brands, 'brand'),
+        artists: scoredRows(artists, 'music')
+      },
+      entityIds: ids,
+      source: 'live'
+    };
+  }
+
+  async getDemographics(opts: {
+    interestEntityIds: string[];
+    interestTagIds?: string[];
+    audienceIds: string[];
+    locationQuery?: string;
+    take?: number;
+  }): Promise<any[]> {
+    const data = await this.get<any>('/v2/insights', {
+      'filter.type': 'urn:demographics',
+      'signal.interests.entities': opts.interestEntityIds.filter(Boolean).join(','),
+      'signal.interests.tags': (opts.interestTagIds || []).filter(Boolean).join(','),
+      'signal.demographics.audiences': opts.audienceIds.filter(Boolean).join(','),
+      'filter.location.query': opts.locationQuery,
+      take: opts.take ?? 5
+    });
+    return this.parseEnvelope(data, '/v2/insights', ['results', 'demographics']);
+  }
+
+  async compareEntities(opts: {
+    aEntityIds: string[];
+    bEntityIds: string[];
+    filterType: string;
+    take?: number;
+  }): Promise<any> {
+    if (!opts.aEntityIds.length || !opts.bEntityIds.length) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/analysis/compare',
+        environment: this.environment,
+        message: 'Comparison requires both a.signal and b.signal entity IDs.'
+      });
     }
+    const data = await this.get<any>('/v2/analysis/compare', {
+      'a.signal.interests.entities': opts.aEntityIds.join(','),
+      'b.signal.interests.entities': opts.bEntityIds.join(','),
+      'filter.type': opts.filterType,
+      take: opts.take ?? 10
+    });
+    if (!data || typeof data !== 'object' || data.success === false || !('results' in data)) {
+      throw new QlooApiError({
+        kind: 'parse',
+        endpoint: '/v2/analysis/compare',
+        environment: this.environment,
+        message: 'Qloo comparison response did not contain results.'
+      });
+    }
+    return data;
+  }
+
+  async getTrending(opts: {
+    filterType: string;
+    entityIds?: string[];
+    startDate: string;
+    endDate: string;
+    take?: number;
+  }): Promise<any[]> {
+    if (!TRENDING_TYPES.has(opts.filterType)) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/trending',
+        environment: this.environment,
+        message: `Trending does not support ${opts.filterType}.`
+      });
+    }
+    if (!opts.startDate || !opts.endDate) {
+      throw new QlooApiError({
+        kind: 'invalid_request',
+        endpoint: '/v2/trending',
+        environment: this.environment,
+        message: 'Trending requires filter.start_date and filter.end_date.'
+      });
+    }
+    const data = await this.get<any>('/v2/trending', {
+      'filter.type': opts.filterType,
+      'signal.interests.entities': (opts.entityIds || []).filter(Boolean).join(','),
+      'filter.start_date': opts.startDate,
+      'filter.end_date': opts.endDate,
+      take: opts.take ?? 10
+    });
+    return this.parseEnvelope(data, '/v2/trending', ['results', 'trending']);
+  }
+
+  async getTags(query: string, take = 10): Promise<any[]> {
+    const data = await this.get<any>('/v2/tags', {
+      'filter.query': query,
+      take
+    });
+    return this.parseEnvelope(data, '/v2/tags', ['results', 'tags']);
+  }
+
+  async getHeatmap(opts: {
+    entityIds?: string[];
+    tagIds?: string[];
+    locationQuery: string;
+    take?: number;
+  }): Promise<any[]> {
+    return this.getInsights({
+      filterType: 'urn:heatmap',
+      entityIds: opts.entityIds,
+      tagIds: opts.tagIds,
+      locationQuery: opts.locationQuery,
+      take: opts.take ?? 10
+    });
+  }
+
+  private mapEntity(r: any): QlooEntity {
+    const id = entityId(r);
+    const urn = entityUrn(r);
+    return {
+      id: id || urn,
+      uuid: id && !id.startsWith('urn:') ? id : undefined,
+      urn,
+      name: entityName(r),
+      type: r.type,
+      subtype: r.subtype,
+      domain: domainFromType(r.subtype || r.type),
+      city: r?.properties?.geocode?.city,
+      country: r?.properties?.geocode?.country,
+      popularity: typeof r?.popularity === 'number' ? r.popularity : undefined
+    };
   }
 }
-
-function entityIdFromRow(raw: any): string | undefined {
-  return raw?.entity_id || raw?.id;
-}
-
-export function createQlooClient(): QlooClient {
-  return new QlooClient({
-    baseUrl: process.env.QLOO_API_BASE_URL || 'https://hackathon.api.qloo.com',
-    apiKey: process.env.QLOO_API_KEY || ''
-  });
-}
-
-export function hasQlooKey(): boolean {
-  return Boolean(process.env.QLOO_API_KEY);
-}
-
 
 function scoredRows(rows: any[], domain: string): QlooAffinity[] {
   return (Array.isArray(rows) ? rows : []).flatMap((row) => {
@@ -289,7 +706,9 @@ function scoredRows(rows: any[], domain: string): QlooAffinity[] {
     if (strength === undefined) return [];
     return [{
       target: entityName(row),
-      targetId: entityIdFromRow(row),
+      targetId: entityId(row),
+      uuid: typeof entityId(row) === 'string' && !entityId(row)!.startsWith('urn:') ? entityId(row) : undefined,
+      urn: entityUrn(row),
       strength,
       domain,
       relation: 'affinity',
@@ -299,4 +718,47 @@ function scoredRows(rows: any[], domain: string): QlooAffinity[] {
       keywords: keywordsFromRow(row)
     }];
   });
+}
+
+export function qlooBaseUrl(): string | undefined {
+  return process.env.QLOO_API_BASE_URL;
+}
+
+export function qlooEnvironmentName(): string {
+  const base = qlooBaseUrl();
+  if (!base) return process.env.NODE_ENV === 'production' ? 'missing' : 'hackathon-default';
+  return qlooEnvironment(base);
+}
+
+export function missingQlooConfigError(): QlooApiError {
+  const missing: string[] = [];
+  if (!process.env.QLOO_API_KEY) missing.push('QLOO_API_KEY');
+  if (!process.env.QLOO_API_BASE_URL && process.env.NODE_ENV === 'production') {
+    missing.push('QLOO_API_BASE_URL');
+  }
+  return new QlooApiError({
+    kind: missing.length ? 'missing_configuration' : 'environment',
+    environment: qlooEnvironmentName(),
+    message: missing.length
+      ? `Qloo is not configured: ${missing.join(', ')}.`
+      : 'Qloo configuration is invalid.'
+  });
+}
+
+export function createQlooClient(): QlooClient {
+  const baseUrl =
+    process.env.QLOO_API_BASE_URL ||
+    (process.env.NODE_ENV === 'production' ? '' : 'https://hackathon.api.qloo.com');
+  const apiKey = process.env.QLOO_API_KEY || '';
+  if (!baseUrl) throw missingQlooConfigError();
+  if (!apiKey) throw missingQlooConfigError();
+  return new QlooClient({ baseUrl, apiKey });
+}
+
+export function hasQlooKey(): boolean {
+  return Boolean(process.env.QLOO_API_KEY);
+}
+
+export function normalizeQlooId(id: string | undefined): string | undefined {
+  return normalizeId(id);
 }

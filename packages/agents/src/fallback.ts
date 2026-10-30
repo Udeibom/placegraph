@@ -94,19 +94,26 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
   const place = locLabel(project);
   const affinities = (snapshot.qlooContext?.affinities || []).map((a: any) => a.target);
   const pois = snapshot.locationContext?.pois?.map((p) => p.name) || [];
-  const cultural = affinities.slice(0, 3).join(', ') || 'adjacent cultural interests';
   const patterns = snapshot.qlooContext?.culturalPatterns || [];
   const patternLabels = patterns.slice(0, 3).map((pattern) => pattern.label.toLowerCase());
-  const patternMix = patternLabels.join(' + ') || cultural;
+  const patternMix = patternLabels.join(' + ') || affinities.slice(0, 3).join(', ') || 'adjacent cultural interests';
+  const opportunities: Opportunity[] = [];
+  const categoryCounts = new Map<string, number>();
+  for (const poi of snapshot.locationContext?.pois || []) {
+    const category = (poi.category || '').trim().toLowerCase();
+    if (!category) continue;
+    categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+  }
+  const repeatedCategory = [...categoryCounts.entries()].find(([, count]) => count >= 2)?.[0];
 
-  return [
-    {
+  if (pois.length >= 3 && repeatedCategory) {
+    opportunities.push({
       id: generateId('opp'),
       analysisRunId: runId,
       type: 'alignment',
       title: `Local cultural alignment for ${place}`,
       whoServes: project.audiences?.[0]?.name || `People already associated with ${place}`,
-      why: `The project can deepen an identity already readable in the surrounding environment rather than competing as a generic ${project.projectType}.`,
+      why: `The project can deepen an identity already readable in the surrounding environment rather than competing as a generic ${project.projectType}. Repeated local category: ${repeatedCategory}.`,
       evidenceRefs: pois.slice(0, 5),
       assumptions: ['Existing venues succeed partly because of cultural fit, not only convenience.'],
       uncertainties: ['Whether the apparent local pattern is preference or developer copycatting.'],
@@ -114,15 +121,24 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       rationale: `Align the ${project.projectType} with patterns already present around ${place}, using Qloo only to sharpen who that local culture actually overlaps with.`,
       qlooEstablished: affinities.slice(0, 4),
       locallyEstablished: pois.slice(0, 4),
-      inferred: ['Reinforcing the local pattern may be more appropriate than importing a foreign concept.']
-    },
-    {
+      inferred: ['Reinforcing the local pattern may be more appropriate than importing a foreign concept.'],
+      relationships: [],
+      evidenceClaimIds: [],
+      commercialLogic: 'Test whether local identity is strong enough to support a differentiated proposition.',
+      validationRequirements: ['Validate local demand, spend, and competitor behaviour.'],
+      confidence: 'approximate',
+      eligible: true
+    });
+  }
+
+  if (affinities.length >= 3 && pois.length) {
+    opportunities.push({
       id: generateId('opp'),
       analysisRunId: runId,
       type: 'whitespace',
       title: `Cultural whitespace: ${patternMix}`,
       whoServes: audienceLine(project),
-      why: `Scored affinities cluster around ${patternMix}, while nearby businesses do not obviously deliver that combination as one physical experience.`,
+      why: `Scored affinities cluster around ${patternMix}, while the available local inventory does not evidence that combination as one physical experience.`,
       evidenceRefs: affinities.slice(0, 5),
       assumptions: ['The affinity cluster is shared enough to support a public commercial environment.'],
       uncertainties: ['Affinity is not demand; feasibility research is still required.'],
@@ -130,9 +146,19 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       rationale: `Compare Qloo relationships against existing supply. The gap is a hypothesis for a differentiated ${project.projectType}, not a mandate.`,
       qlooEstablished: affinities.slice(0, 5),
       locallyEstablished: pois.slice(0, 3),
-      inferred: [`Combining ${patternMix} into one ${project.projectType} could be poorly represented locally.`]
-    },
-    {
+      inferred: [`Combining ${patternMix} into one ${project.projectType} is not evidenced in the available local inventory; verify local supply before treating it as a gap.`],
+      relationships: [],
+      evidenceClaimIds: [],
+      commercialLogic: 'Test whether the whitespace is an unmet need rather than an absence of demand.',
+      validationRequirements: ['Validate the affinity cluster against demand and local supply.'],
+      confidence: 'approximate',
+      eligible: true
+    });
+  }
+
+  const destinationIntent = /attract|destination|visitor|travel|draw/i.test(project.objective);
+  if (destinationIntent || (project.audiences || []).some((audience) => audience.priority === 1)) {
+    opportunities.push({
       id: generateId('opp'),
       analysisRunId: runId,
       type: 'destination',
@@ -146,9 +172,17 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       rationale: project.objective,
       qlooEstablished: affinities.slice(0, 4),
       locallyEstablished: pois.slice(0, 3),
-      inferred: ['A destination strategy must still belong culturally enough to the place.']
-    }
-  ];
+      inferred: ['A destination strategy must still belong culturally enough to the place.'],
+      relationships: [],
+      evidenceClaimIds: [],
+      commercialLogic: 'Test whether the site can support destination behaviour and access.',
+      validationRequirements: ['Validate catchment, travel behaviour, and site access.'],
+      confidence: 'approximate',
+      eligible: true
+    });
+  }
+
+  return opportunities;
 }
 
 export function fallbackStrategies(
@@ -166,8 +200,8 @@ export function fallbackStrategies(
     .map((pattern) => `${pattern.label} (${pattern.places.slice(0, 2).join(', ')})`)
     .join('; ');
 
-  return opportunities.slice(0, 3).map((op, index) => {
-    const hybrid = index === 1 && patterns.length >= 2;
+  return opportunities.map((op) => {
+    const hybrid = op.type === 'whitespace' && patterns.length >= 2;
     const differentiation = hybrid
       ? `A hybrid of ${patternNames.join(' + ')} that is not a single-use ${project.projectType}.`
       : op.type === 'whitespace'
@@ -208,17 +242,17 @@ export function fallbackStrategies(
       locallyEstablished: op.locallyEstablished?.[0] || undefined,
       inferred: op.inferred?.[0] || undefined,
       conceptType: hybrid ? 'hybrid cultural commons' : op.type,
-      fitForAudience: `Fits ${op.whoServes} based on Qloo cultural signals and local context.`,
+      fitForAudience: op.qlooEstablished?.length
+        ? `Fits ${op.whoServes} based on scored Qloo cultural signals and local context.`
+        : `Fits ${op.whoServes} provisionally; Qloo cultural signals are limited.`,
       culturalRelationships: op.qlooEstablished?.slice(0, 5) || [],
       opportunityCaptured: op.why,
       whyWeakerThanAlternatives: 'Trade-off vs other concepts: consider fit, feasibility, and differentiation against alternatives.',
       qlooEvidenceSummary: op.qlooEstablished?.length
-        ? `Qloo cultural intelligence supports this concept via: ${op.qlooEstablished.slice(0, 3).join(', ')}.`
-        : 'Qloo evidence limited; relies more on local observation and inference.',
-      evaluationScore: hybrid ? 9 : op.type === 'whitespace' ? 8 : 7,
-      qlooChangedDecision: op.qlooEstablished?.length
-        ? 'This recommendation changed because of Qloo - scored cultural affinities reveal a differentiated opportunity not obvious from generic business analysis.'
-        : undefined,
+        ? `Qloo cultural relationships cited for this concept: ${op.qlooEstablished.slice(0, 3).join(', ')}. This is supporting evidence, not proof of demand.`
+        : 'Qloo evidence limited; this fallback relies more on local observation and inference.',
+      evidenceClaimIds: op.evidenceClaimIds || [],
+      opportunityId: op.id,
     };
   });
 }

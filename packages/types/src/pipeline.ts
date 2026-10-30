@@ -1,6 +1,18 @@
 import { z } from 'zod';
 import { ProvenanceNodeSchema } from './provenance';
 import { ProjectSchema } from './project';
+import {
+  AudienceResolutionSchema,
+  CulturalRelationshipSchema,
+  DecisionBriefSchema,
+  DecisionDeliverableSchema,
+  DecisionFrameSchema,
+  EvidenceClaimSchema,
+  EvidenceQualitySchema,
+  OrganisationProfileSchema,
+  QlooFailureSchema,
+  StageStateSchema
+} from './intelligence';
 
 export const OpportunityTypeSchema = z.enum([
   'alignment',
@@ -24,6 +36,12 @@ export const OpportunitySchema = z.object({
   qlooEstablished: z.array(z.string()).default([]),
   locallyEstablished: z.array(z.string()).default([]),
   inferred: z.array(z.string()).default([]),
+  relationships: z.array(z.string()).default([]),
+  evidenceClaimIds: z.array(z.string()).default([]),
+  commercialLogic: z.string().optional(),
+  validationRequirements: z.array(z.string()).default([]),
+  confidence: EvidenceQualitySchema.optional(),
+  eligible: z.boolean().default(true),
   provenance: ProvenanceNodeSchema.optional()
 });
 
@@ -53,8 +71,9 @@ export const StrategySchema = z.object({
   opportunityCaptured: z.string().optional(),
   whyWeakerThanAlternatives: z.string().optional(),
   qlooEvidenceSummary: z.string().optional(),
-  evaluationScore: z.number().optional(),
-  qlooChangedDecision: z.string().optional()
+  opportunityId: z.string().optional(),
+  evidenceClaimIds: z.array(z.string()).default([]),
+  decisionFit: z.string().optional()
 });
 
 export const ExperienceRequirementSchema = z.object({
@@ -188,6 +207,9 @@ export const EvidenceGateSchema = z.object({
   llmAvailable: z.boolean(),
   intelligenceMode: z.enum(['live', 'mixed', 'template']),
   allowConfidentRecommendation: z.boolean(),
+  qlooStatus: z.enum(['ready', 'degraded', 'failed', 'missing']).optional(),
+  blockedReason: z.string().optional(),
+  contractFailure: QlooFailureSchema.optional(),
   warnings: z.array(z.string()).default([]),
   evidenceSummary: z.object({
     canRecommend: z.boolean(),
@@ -231,8 +253,16 @@ export const CulturalPatternSchema = z.object({
   implication: z.string()
 });
 
+export const QlooLocationResolutionSchema = z.object({
+  query: z.string().optional(),
+  resolved: z.boolean().default(false),
+  scope: z.enum(['neighborhood', 'city', 'region', 'country', 'global', 'unresolved']).default('unresolved'),
+  candidatesTried: z.array(z.string()).default([])
+});
+
 export const QlooContextSchema = z.object({
-  source: z.enum(['live', 'mock', 'mixed']).default('mock'),
+  source: z.enum(['live', 'mock', 'mixed', 'failed', 'unavailable']).default('unavailable'),
+  locationResolution: QlooLocationResolutionSchema.optional(),
   entities: z.array(z.any()).default([]),
   affinities: z.array(z.any()).default([]),
   audienceAffinities: z.record(z.string(), z.array(z.any())).optional(),
@@ -240,7 +270,11 @@ export const QlooContextSchema = z.object({
   culturalPatterns: z.array(CulturalPatternSchema).default([]),
   culturalThesis: z.string().default(''),
   notes: z.array(z.string()).default([]),
-  insufficient: z.boolean().default(false)
+  insufficient: z.boolean().default(false),
+  failure: QlooFailureSchema.optional(),
+  audienceResolutions: z.array(AudienceResolutionSchema).default([]),
+  evidenceClaims: z.array(EvidenceClaimSchema).default([]),
+  environment: z.string().optional()
 });
 
 export const CounterfactualSchema = z.object({
@@ -334,6 +368,15 @@ export const AnalysisSnapshotSchema = z.object({
   ]).default('idle'),
   locationContext: LocationContextSchema.optional(),
   qlooContext: QlooContextSchema.optional(),
+  decisionFrame: DecisionFrameSchema.optional(),
+  organisationProfiles: z.array(OrganisationProfileSchema).default([]),
+  primaryProfileId: z.string().optional(),
+  audienceResolutions: z.array(AudienceResolutionSchema).default([]),
+  evidenceClaims: z.array(EvidenceClaimSchema).default([]),
+  relationships: z.array(CulturalRelationshipSchema).default([]),
+  stageStates: z.array(StageStateSchema).default([]),
+  decisionBrief: DecisionBriefSchema.optional(),
+  deliverables: z.array(DecisionDeliverableSchema).default([]),
   landscapes: z
     .object({
       existing: CulturalLandscapeSchema,
@@ -390,6 +433,7 @@ export type PlacePoi = z.infer<typeof PlacePoiSchema>;
 export type LocationContext = z.infer<typeof LocationContextSchema>;
 export type CulturalPattern = z.infer<typeof CulturalPatternSchema>;
 export type QlooContext = z.infer<typeof QlooContextSchema>;
+export type QlooLocationResolution = z.infer<typeof QlooLocationResolutionSchema>;
 export type Counterfactual = z.infer<typeof CounterfactualSchema>;
 export type AnalysisSnapshot = z.infer<typeof AnalysisSnapshotSchema>;
 export type ProjectRecord = z.infer<typeof ProjectSchema>;

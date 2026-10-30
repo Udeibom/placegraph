@@ -1,12 +1,12 @@
 export const STRATEGY_GENERATION_PROMPT = `Analysis mode: {mode}
 
 If mode is DISCOVER:
-- Do not assume a business type. Generate three investment directions that represent genuinely different commercial formats, not three versions of the same format.
+- Do not assume a business type. Generate only the evidence-qualified investment directions that represent genuinely different commercial formats, not versions of the same format.
 - Each direction should name a specific type of commercial experience, not a generic category. Not "food and beverage" but "neighbourhood wine and ferment bar." Not "retail" but "maker-goods and tools shop."
 - The title must be 3–5 words, evocative, specific enough to put above a door.
 
 If mode is EVALUATE:
-- The project brief specifies a business type. Your investment directions should be three different cultural expressions of that business type, differentiated by Qloo evidence.
+- The project brief specifies a business type. Generate only the evidence-qualified cultural expressions of that business type, differentiated by Qloo evidence.
 
 You are generating and EVALUATING possible experience concepts for a physical place. This is a capital decision: decide what kind of place should be built, for whom, and why - before committing significant capital.
 
@@ -15,6 +15,7 @@ Opportunities: {opportunities}
 Landscapes: {landscapes}
 Audience relationships: {audienceAnalysis}
 Cultural/Qloo context: {qlooContext}
+Traceable cultural relationships: {relationships}
 Hard operational constraints: {hardConstraints}
 
 CRITICAL LANGUAGE RULES — violating these will invalidate the analysis:
@@ -25,7 +26,7 @@ CRITICAL LANGUAGE RULES — violating these will invalidate the analysis:
 4. NEVER treat the absence of an online-only brand or national landmark from a neighbourhood as a "whitespace opportunity". Wowcher not having a shop in Peckham is not a cultural gap.
 5. When you reference a Qloo entity, always include its affinity score and always note it is a cultural relationship: "Hackney Event Space (0.972) — a scored cultural relationship, not a demand signal."
 
-Generate 2-4 genuinely different EXPERIENCE CONCEPTS. Do not just generate ideas - EVALUATE them using Qloo-derived cultural signals.
+Generate only the genuinely different EXPERIENCE CONCEPTS that the evidence supports. Do not pad to a fixed count. Do not just generate ideas - EVALUATE them using Qloo-derived cultural signals.
 
 For each concept, you MUST explain:
 - conceptType: a specific type of experience concept (e.g., "listening bar", "day-to-night communal house", "maker workshop + retail")
@@ -33,14 +34,12 @@ For each concept, you MUST explain:
 - culturalRelationships: list the specific Qloo cultural relationships (entities/affinities with scores if available) that support this concept
 - opportunityCaptured: what cultural opportunity this captures that others might miss
 - whyWeakerThanAlternatives: be explicit about why other concepts might be stronger/weaker; for THIS concept explain its relative weaknesses or constraints
-- qlooEvidenceSummary: a concrete summary of Qloo cultural intelligence that makes this concept viable - must reference specific scored affinities
+- qlooEvidenceSummary: a concrete summary of the Qloo cultural relationships that support this concept, and where that support stops
 - qlooEstablished: specific Qloo entities or affinity relationships that directly support this strategy (must name actual entities with scores where possible)
-- qlooChangedDecision: explain what insight from Qloo changes the investment decision for this concept (or "This recommendation changed because of Qloo: ...")
-- evaluationScore: 1-10 rating based on cultural fit with Qloo evidence
 
 Direction types (choose the best fit):
 - "Local Cultural Alignment": concept rooted in and continuous with existing local cultural fabric
-- "Cultural Whitespace": concept fills a gap that is culturally demanded by Qloo evidence but physically absent
+- "Cultural Whitespace": concept is supported by Qloo evidence but not visibly expressed in available local supply
 - "Destination Experience": concept draws visitors from beyond immediate area based on cultural pull
 
 Each concept must include:
@@ -54,16 +53,18 @@ Each concept must include:
 - risks: honest list of what could go wrong
 - competitors: who or what this concept would compete with
 - evidenceRefs: references to Qloo entities or local evidence
+- opportunityId: the opportunity this concept captures, when one exists
 - assumptions: what must be true
 - uncertainties: what is genuinely unknown
 - locallyEstablished: local geographic or market observations
 - inferred: what you inferred without direct evidence
 
-CRITICAL - Make Qloo the reason this product exists:
-- Every concept must show concrete Qloo cultural intelligence behind it
+CRITICAL - Show the evidence contribution without forcing differentiation:
+- Every concept must show which concrete Qloo relationships support it, or state plainly that Qloo did not support it
 - qlooEstablished MUST name specific scored affinity entities/relationships with affinity scores where available from the Qloo context
-- If a concept relies heavily on Qloo to differentiate from conventional analysis, say so explicitly in qlooChangedDecision
-- A concept that could be recommended by generic business analysis without Qloo is not acceptable as your lead recommendation - show what Qloo revealed
+- The same direction as conventional analysis can still be valid when Qloo improves confidence or specificity
+- Never claim that Qloo changed the recommendation. That requires a controlled counterfactual, which this prompt does not provide
+- If Qloo evidence is thin, contradictory, or absent, put that in uncertainties and explain what evidence would change the view
 
 Cultural pattern interpretation:
 - The Qloo context includes culturalPatterns and culturalThesis. Treat the mix of patterns as primary cultural signal.

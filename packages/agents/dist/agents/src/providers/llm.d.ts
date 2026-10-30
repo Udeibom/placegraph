@@ -9,6 +9,14 @@ export interface LLMMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
 }
+export type LLMFailureKind = 'budget' | 'rate_limit' | 'authentication' | 'unavailable' | 'upstream' | 'parse';
+export interface LLMFailure {
+    kind: LLMFailureKind;
+    status?: number;
+    message: string;
+    model: string;
+    retryable?: boolean;
+}
 export interface LLMResponse {
     content: string;
     model: string;
@@ -16,11 +24,16 @@ export interface LLMResponse {
         promptTokens: number;
         completionTokens: number;
     };
+    failure?: LLMFailure;
 }
+export declare function estimateTokens(text: string): number;
+export declare function estimateRequestTokens(messages: LLMMessage[], maxTokens: number): number;
 export declare class LLMProvider {
     private config;
     private resolvedModel;
+    private tokenLimit;
     constructor(config: LLMConfig);
+    get requestTokenLimit(): number;
     get available(): boolean;
     private modelCandidates;
     complete(messages: LLMMessage[], opts?: {

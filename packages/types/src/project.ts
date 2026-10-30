@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  DecisionFrameSchema,
+  EvaluateConceptSchema,
+  OrganisationProfileSchema
+} from './intelligence';
 
 export const ProjectTypeSchema = z.enum([
   'restaurant',
@@ -40,6 +45,10 @@ export const ProjectSchema = z.object({
   projectType: ProjectTypeSchema.default('other'),
   businessType: z.string().default(''),
   operatorType: z.enum(['developer', 'hospitality', 'retail', 'operator']).optional(),
+  organisationProfiles: z.array(OrganisationProfileSchema).default([]),
+  primaryProfileId: z.string().optional(),
+  decisionFrame: DecisionFrameSchema.optional(),
+  concept: EvaluateConceptSchema.optional(),
   objective: z.string(),
   investmentIntent: z.string().optional(),
   budgetRange: z.string().optional(),

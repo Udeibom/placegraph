@@ -1,4 +1,4 @@
-import { ProvenanceNode } from '@placegraph/types';
+import type { ProvenanceNode } from '@placegraph/types';
 
 export class ProvenanceBuilder {
   private nodes: ProvenanceNode[] = [];

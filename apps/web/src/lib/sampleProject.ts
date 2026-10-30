@@ -9,6 +9,24 @@ export const SAMPLE_PROJECT: Omit<Project, 'id' | 'status' | 'createdAt' | 'upda
   },
   mode: 'evaluate',
   projectType: 'restaurant',
+  organisationProfiles: [
+    {
+      id: 'profile-hospitality',
+      type: 'hospitality',
+      name: 'Hospitality group',
+      primary: true,
+      mandate: 'Create a destination restaurant in Clerkenwell',
+      deliverables: ['concept_identity', 'fb_daypart_implications', 'programming_model']
+    }
+  ],
+  primaryProfileId: 'profile-hospitality',
+  decisionFrame: {
+    type: 'establish',
+    subject: 'Destination restaurant in Clerkenwell',
+    capitalIntent: '£800k–1.2M',
+    successTests: [],
+    constraints: []
+  },
   businessType: 'destination restaurant',
   objective:
     'Create a destination restaurant that can attract a design-aware dining audience from across London while remaining appropriate to Clerkenwell’s existing food culture — not a generic upscale fit-out, and not an entertainment venue.',

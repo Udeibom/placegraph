@@ -84,6 +84,22 @@ export class QlooMockClient {
     async getAffinities(entity) {
         return profileFor(String(entity)).affinities;
     }
+    async searchAudiences(query) {
+        const h = hash(query);
+        return [
+            {
+                entityId: `mock_aud_${h}`,
+                id: `urn:audience:mock:${h}`,
+                name: query,
+                type: 'urn:audience:mock',
+                parents: [],
+                tags: ['mock']
+            }
+        ];
+    }
+    async getAudienceAffinities(audienceIds) {
+        return profileFor(audienceIds.join(' ')).affinities;
+    }
     async getCrossDomain(context) {
         const seed = context.entities[0] || 'place';
         const profile = profileFor(seed);

@@ -11,7 +11,8 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-loader ./scripts/ts-loader.mjs --test packages/*/test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

@@ -54,10 +54,14 @@ Stages (deterministic orchestration + agent calls):
 
 ## Qloo Integration
 Abstraction: `packages/qloo/src/client.ts`
-- Endpoints: entities search, affinities, cross-domain, audience insights (use hackathon guide)
-- Caching (Redis/Supabase KV) to respect limits
-- Mock mode when no key? For dev without hitting API, provide rich mocks
-- Normalize: Entity, Affinity(rel, strength, domain), DomainSet
+- Authoritative contract and verified corrections: `docs/INTELLIGENCE_SPEC.md`
+- Implementation sequencing and gates: `docs/IMPLEMENTATION_PLAN.md`
+- Endpoints: `/v2/search` (`types`/`take`), `/entities` (`entity_ids`), `/v2/insights`, `/v2/analysis/compare`, `/v2/trending`, `/v2/tags`, `/v2/audiences` (deprecated)
+- Do not use `/v2/entities`, `/search`, `type`, or `limit`; unsupported parameters may be silently ignored.
+- Fail closed on auth, authorization, invalid-request, and parse failures. Do not convert errors into successful empty evidence.
+- Caching (Redis/Supabase KV) to respect limits; cache keys must include the configured base environment.
+- Mock mode only when explicitly enabled and labelled; never present mocks as live evidence.
+- Normalize: Entity (UUID + URN), Affinity(rel, strength, domain), DomainSet
 - Return evidence objects with IDs, sources, confidence
 
 Store minimal raw responses referenced by evidence.

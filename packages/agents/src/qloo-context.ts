@@ -1,18 +1,103 @@
-import { createQlooClient, hasQlooKey, QlooMockClient, type QlooAffinity, type QlooEntity } from '@placegraph/qloo';
-import type { LocationContext, Project, QlooContext } from '@placegraph/types';
+import {
+  createQlooClient,
+  hasQlooKey,
+  missingQlooConfigError,
+  normalizeQlooId,
+  QlooApiError,
+  QlooMockClient,
+  type QlooAffinity,
+  type QlooEntity
+} from '@placegraph/qloo';
+import type {
+  AudienceResolution,
+  EvidenceClaim,
+  LocationContext,
+  Project,
+  QlooContext,
+  QlooFailure
+} from '@placegraph/types';
+import { makeEvidenceClaim } from './claim';
+import { resolveAudienceEvidence, unresolvedAudienceEvidence } from './audiences';
 import { deriveCulturalPatterns, projectAllowsEventProgramming } from './cultural-patterns';
 
-/**
- * Gather Qloo cultural context.
- *
- * Qloo's location filter rejects some bare place names (for example "Nsukka")
- * even when the same locality resolves as "Nsukka, Nigeria". We therefore
- * resolve a usable location label once, then reuse it for every affinity query.
- *
- * Search results are deliberately kept separate from affinity evidence. A Qloo
- * search match means "this entity exists"; it does not mean "this audience has
- * an affinity with it". Only rows with a numeric affinity score become evidence.
- */
+function failureFrom(err: unknown, environment: string): QlooFailure {
+  if (err instanceof QlooApiError) {
+    return {
+      kind: err.kind,
+      endpoint: err.endpoint,
+      status: err.status,
+      message: err.message,
+      retryable: err.retryable,
+      environment: err.environment || environment
+    };
+  }
+  return {
+    kind: 'upstream',
+    message: String(err),
+    retryable: false,
+    environment
+  };
+}
+
+function emptyQlooContext(
+  project: Project,
+  source: 'failed' | 'unavailable',
+  failure: QlooFailure
+): QlooContext {
+  const unresolved = unresolvedAudienceEvidence(project, failure.message);
+  return {
+    source,
+    entities: [],
+    affinities: [],
+    audienceAffinities: Object.fromEntries(unresolved.audiences.map((audience) => [audience.name, []])),
+    crossDomain: null,
+    culturalPatterns: [],
+    culturalThesis: '',
+    notes: [
+      `Qloo ${source === 'failed' ? 'failed' : 'is unavailable'}: ${failure.message}`,
+      'No cultural claims were generated. Confident cultural recommendations are blocked.'
+    ],
+    insufficient: true,
+    failure,
+    audienceResolutions: unresolved.audiences,
+    evidenceClaims: unresolved.claims,
+    environment: failure.environment
+  };
+}
+
+function audienceAffinityMap(audiences: AudienceResolution[]): Record<string, QlooAffinity[]> {
+  return Object.fromEntries(
+    audiences.map((audience) => [
+      audience.name,
+      audience.affinities.map((affinity) => ({
+        target: affinity.target,
+        targetId: affinity.targetId,
+        urn: affinity.urn,
+        strength: affinity.strength,
+        domain: affinity.domain,
+        genre: affinity.genre,
+        city: affinity.city,
+        seedCount: affinity.seedCount
+      }))
+    ])
+  );
+}
+
+function markMockClaims(claims: EvidenceClaim[]): EvidenceClaim[] {
+  return claims.map((claim) => ({
+    ...claim,
+    evidenceType: 'assumption',
+    source: 'assumption',
+    quality: 'insufficient',
+    sourceEnvironment: 'mock',
+    claim: `Illustrative mock evidence only: ${claim.claim}`,
+    limitations: [
+      ...claim.limitations,
+      'Mock evidence is illustrative and is never live Qloo evidence.'
+    ]
+  }));
+}
+
 export async function gatherQlooContext(
   project: Project,
   forceMock?: boolean,
@@ -20,260 +105,252 @@ export async function gatherQlooContext(
 ): Promise<QlooContext> {
   const loc =
     project.location.neighborhood ||
-    project.location.city         ||
-    project.location.address      ||
+    project.location.city ||
+    project.location.address ||
     project.name;
 
-  const useLive = hasQlooKey() && forceMock !== true;
-  const mock    = new QlooMockClient();
-
-  /* ─── Mock mode ─────────────────────────────────────────────── */
-  if (!useLive) {
-    const affinities  = await mock.getAffinities(loc);
-    const entities    = await mock.searchEntities(loc);
-    const crossDomain = await mock.getCrossDomain({
-      entities:  [loc, project.projectType],
-      audiences: project.audiences.map((a) => a.name),
+  /* ─── Explicit mock mode for tests/demo only ───────────────── */
+  if (forceMock) {
+    const mock = new QlooMockClient();
+    const affinities = await mock.getAffinities(loc);
+    const entities = await mock.searchEntities(loc);
+    const audienceResult = await resolveAudienceEvidence(project, mock, {
+      locationQuery: project.location.city,
+      environment: 'mock'
     });
-
-    const audienceAffinities: Record<string, QlooAffinity[]> = {};
-    for (const aud of project.audiences) {
-      audienceAffinities[aud.name] = await mock.getAffinities(`${aud.name} ${loc}`);
-    }
-
+    const claims = markMockClaims(audienceResult.claims);
+    const audienceAffinities = audienceAffinityMap(audienceResult.audiences);
     const { culturalPatterns, culturalThesis } = deriveCulturalPatterns(affinities, {
       allowsEventProgramming: projectAllowsEventProgramming(project)
     });
 
     return {
       source: 'mock',
+      locationResolution: {
+        resolved: false,
+        scope: 'unresolved',
+        candidatesTried: []
+      },
+      entities,
+      affinities,
+      audienceAffinities,
+      crossDomain: null,
+      culturalPatterns,
+      culturalThesis,
+      notes: [
+        'Qloo is running in explicit mock mode. Affinities are illustrative cultural relationships, not live graph evidence.',
+        'Mock evidence is insufficient for a confident recommendation.',
+        ...audienceResult.notes
+      ],
+      insufficient: true,
+      audienceResolutions: audienceResult.audiences.map((audience) => ({
+        ...audience,
+        status: audience.status === 'failed' ? 'failed' : 'approximate',
+        quality: 'insufficient',
+        limitations: [...audience.limitations, 'Mock profile only.']
+      })),
+      evidenceClaims: claims,
+      environment: 'mock'
+    };
+  }
+
+  /* ─── Missing configuration fails closed; no silent mock ────── */
+  if (!hasQlooKey()) {
+    return emptyQlooContext(project, 'unavailable', failureFrom(missingQlooConfigError(), 'missing'));
+  }
+
+  const client = createQlooClient();
+  const environment = client.environment;
+  const city = project.location.city?.trim();
+
+  try {
+    const placeClaims: EvidenceClaim[] = [];
+
+    // 1. Find a local anchor entity. A search match proves existence only.
+    const anchorQueries = unique([
+      project.location.neighborhood,
+      loc,
+      project.location.address,
+      project.location.city,
+      project.name
+    ]);
+    let anchor: QlooEntity | undefined;
+    for (const query of anchorQueries) {
+      if (!query) continue;
+      const found = await client.searchEntities(query, { take: 8, type: 'urn:entity:place' });
+      anchor =
+        found.find((entity) => entity.id && sameCity(entity.city, city)) ||
+        found.find((entity) => entity.id && entity.city) ||
+        found.find((entity) => entity.id);
+      if (anchor?.id) break;
+    }
+
+    if (anchor) {
+      placeClaims.push(
+        makeEvidenceClaim({
+          stage: 'place_resolution',
+          claim: `Qloo returned a place search match for ${anchor.name}.`,
+          evidenceType: 'qloo_search',
+          source: 'qloo',
+          quality: 'moderate',
+          scope: { place: loc, audienceIds: [] },
+          qlooRefs: [anchor.uuid, anchor.urn, anchor.id].filter(
+            (value): value is string => Boolean(value)
+          ),
+          supporting: [anchor.name],
+          limitations: ['A search match proves that the entity exists; it is not affinity evidence.'],
+          interpretation: 'The place anchor exists in Qloo.',
+          implication: 'Use the anchor only to request scored relationships.',
+          sourceEnvironment: environment
+        })
+      );
+    }
+
+    // 2. Resolve the location filter once. Invalid localities return no rows.
+    const candidates = locationCandidates(project, locationContext);
+    let resolvedLocation: string | undefined;
+    let locationResolved = false;
+
+    if (anchor?.id) {
+      for (const candidate of candidates) {
+        const rows = await client.getInsights({
+          filterType: 'urn:entity:place',
+          entityIds: [anchor.id],
+          locationQuery: candidate,
+          take: 3
+        });
+        if (rows.length) {
+          resolvedLocation = candidate;
+          locationResolved = true;
+          break;
+        }
+      }
+    }
+
+    const locationResolution = {
+      query: resolvedLocation,
+      resolved: locationResolved,
+      scope: locationScope(project, resolvedLocation),
+      candidatesTried: candidates
+    };
+
+    // 3. Resolve audience taxonomy and scored place affinities.
+    const audienceResult = await resolveAudienceEvidence(project, client, {
+      locationQuery: resolvedLocation,
+      environment
+    });
+    const audienceAffinities = audienceAffinityMap(audienceResult.audiences);
+
+    const anchorAffinities = (
+      anchor?.id && locationResolved
+        ? await client.getAffinities(anchor, {
+            location: resolvedLocation,
+            take: 15,
+            domains: ['urn:entity:place']
+          })
+        : []
+    ).filter(isUsableAffinity);
+
+    const anchorCrossDomainAffinities: QlooAffinity[] = (anchor?.id && locationResolved
+      ? await client.getAffinities(anchor, {
+          location: resolvedLocation,
+          take: 10,
+          domains: ['urn:entity:brand', 'urn:entity:artist', 'urn:entity:movie']
+        }).catch(() => [])
+      : []
+    ).filter(isUsableAffinity);
+
+    // 4. Location-level and project-type entity matches are context only.
+    const [locEntities, typeEntities] = await Promise.all([
+      loc ? client.searchEntities(loc, { take: 8, type: 'urn:entity:place' }) : Promise.resolve([]),
+      project.projectType
+        ? client.searchEntities(project.projectType, { take: 5 })
+        : Promise.resolve([])
+    ]);
+
+    // 5. Cross-domain relationships, only where Qloo returns a scored affinity.
+    const rawCrossDomain = locationResolved
+      ? await client.getCrossDomain({
+          entities: unique([anchor?.name || loc, project.projectType]),
+          audiences: project.audiences.map((audience) => audience.name),
+          location: resolvedLocation
+        })
+      : null;
+    const crossDomain = filterCrossDomain(rawCrossDomain);
+
+    const entities = uniqueById([...audienceResult.audiences.flatMap((audience) => audience.seeds.map(seedToEntity)), ...locEntities, ...typeEntities, ...(anchor ? [anchor] : [])]);
+    const affinities = dedupeAffinities([
+      ...anchorAffinities,
+      ...anchorCrossDomainAffinities,
+      ...audienceResult.affinities
+    ]);
+
+    const notes: string[] = [
+      'Live Qloo queries were run. Scores are cultural relationships, not demand.',
+      ...audienceResult.notes
+    ];
+
+    if (locationResolved) {
+      notes.push(`Qloo location resolved as "${resolvedLocation}".`);
+    } else {
+      notes.push(
+        'Qloo could not resolve a location filter for this project; location-scoped affinities were withheld rather than substituting global evidence.'
+      );
+    }
+    if (entities.length && !affinities.length) {
+      notes.push('Qloo returned entity search matches but no scored affinities. Search matches are not affinity evidence.');
+    }
+
+    const { culturalPatterns, culturalThesis } = deriveCulturalPatterns(affinities, {
+      allowsEventProgramming: projectAllowsEventProgramming(project)
+    });
+    if (culturalPatterns.length) {
+      notes.push(
+        `Cultural patterns group scored place genres into ${culturalPatterns
+          .map((pattern) => pattern.label.toLowerCase())
+          .join(', ')}. They are PlaceGraph inference, not additional Qloo scores.`
+      );
+    }
+
+    return {
+      source: 'live',
       entities,
       affinities,
       audienceAffinities,
       crossDomain,
       culturalPatterns,
       culturalThesis,
-      notes: [
-        'Qloo is running in mock mode (no API key or mock forced). ' +
-        'Affinities are illustrative cultural relationships, not live graph evidence.',
-        'Cultural patterns are inferred from scored place genres; they are not additional Qloo scores.',
-      ],
-      insufficient: true,
+      locationResolution,
+      notes,
+      insufficient: affinities.length < 3,
+      audienceResolutions: audienceResult.audiences,
+      evidenceClaims: [...placeClaims, ...audienceResult.claims],
+      environment
     };
+  } catch (err) {
+    const failure = failureFrom(err, environment);
+    const context = emptyQlooContext(project, 'failed', failure);
+    context.notes.push('Qloo failed closed; no generic cultural fallback was used.');
+    return context;
   }
-
-  /* ─── Live mode ──────────────────────────────────────────────── */
-  const client = createQlooClient();
-  const city = project.location.city?.trim();
-
-  // 1. Find a local anchor entity. Place search is the most reliable signal
-  //    that Qloo knows this locality at all.
-  const anchorQueries = unique([project.location.city, loc, project.location.address, project.name]);
-  let anchor: QlooEntity | undefined;
-  for (const query of anchorQueries) {
-    if (!query) continue;
-    const found = await client.searchEntities(query, { limit: 8, type: 'urn:entity:place' });
-    anchor =
-      found.find((e) => e.id && sameCity(e.city, city)) ||
-      found.find((e) => e.id && e.city) ||
-      found.find((e) => e.id);
-    if (anchor?.id) break;
-  }
-
-  // 2. Resolve the location filter once. Invalid localities return no rows, so
-  //    probe candidates with a single place query before fanning out.
-  const candidates = locationCandidates(project, locationContext);
-  let resolvedLocation: string | undefined;
-  let locationResolved = false;
-
-  if (anchor?.id) {
-    for (const candidate of candidates) {
-      const rows = await client.getInsights({
-        filterType: 'urn:entity:place',
-        entityIds: [anchor.id],
-        locationQuery: candidate,
-        take: 3
-      });
-      if (rows.length) {
-        resolvedLocation = candidate;
-        locationResolved = true;
-        break;
-      }
-    }
-  }
-
-  // 3. Per-audience: generate multiple search queries, collect usable seed
-  //    entities, then intersect their place affinities. A single entity is a
-  //    thin proxy for an audience; multiple seeds reveal what is consistent
-  //    across cultural contexts.
-  const audienceAffinities: Record<string, QlooAffinity[]> = {};
-  const allEntities: QlooEntity[]  = [];
-  const allAffinities: QlooAffinity[] = [];
-  const notes: string[] = ['Live Qloo queries were run per audience. Scores are cultural relationships, not demand.'];
-
-  const anchorAffinities = (anchor?.id && locationResolved
-    ? await client.getAffinities(anchor, {
-        location: resolvedLocation,
-        limit: 15,
-        domains: ['urn:entity:place']
-      })
-    : []).filter(isUsableAffinity);
-
-  // Fetch cross-domain affinities (brand, artist, film) for the anchor.
-  // These reveal the broader taste profile: what brands, musicians, and films
-  // resonate with people who frequent this location cluster.
-  const anchorCrossDomainAffinities: QlooAffinity[] = (anchor?.id
-    ? await client.getAffinities(anchor, {
-        limit: 10,
-        domains: ['urn:entity:brand', 'urn:entity:artist', 'urn:entity:film']
-      }).catch(() => [])
-    : []).filter(isUsableAffinity);
-
-  const audienceResults = await Promise.all(
-    project.audiences.map(async (aud) => {
-      try {
-        const queries = unique([
-          aud.name,
-          aud.description
-            ? aud.description.trim().split(/\s+/).slice(0, 4).join(' ')
-            : undefined,
-          `${aud.name} ${project.location.neighborhood || project.location.city || ''}`.trim()
-        ]);
-
-        const candidateBatches = await Promise.all(
-          queries.map((query) => client.searchEntities(query, { limit: 3 }))
-        );
-        const candidates = uniqueById(candidateBatches.flat())
-          .filter((entity) => entity.id && isUsableSeed(entity))
-          .slice(0, 3);
-
-        const affinityBatches: QlooAffinity[][] = [];
-        if (locationResolved) {
-          for (const seed of candidates) {
-            const affs = await client
-              .getAffinities(seed, {
-                location: resolvedLocation,
-                limit: 15,
-                domains: ['urn:entity:place']
-              })
-              .catch(() => []);
-            affinityBatches.push(affs.filter(isUsableAffinity));
-          }
-        }
-
-        return {
-          audienceName: aud.name,
-          seedNames: candidates.map((seed) => seed.name),
-          entities: candidateBatches.flat(),
-          affinities: buildAudienceAffinityPool(affinityBatches)
-        };
-      } catch {
-        return {
-          audienceName: aud.name,
-          seedNames: [] as string[],
-          entities: [] as QlooEntity[],
-          affinities: [] as QlooAffinity[]
-        };
-      }
-    })
-  );
-
-  let strongProfiles = 0;
-  let approximateProfiles = 0;
-  let unresolvedProfiles = 0;
-
-  for (const result of audienceResults) {
-    audienceAffinities[result.audienceName] = result.affinities;
-    if (result.seedNames.length >= 2) {
-      strongProfiles += 1;
-      notes.push(
-        `Audience "${result.audienceName}": resolved from ${result.seedNames.length} seed entities (${result.seedNames.join(', ')}). Affinities reflect intersection of ${result.seedNames.length === 2 ? 'both' : 'all'} profiles.`
-      );
-    } else if (result.seedNames.length === 1) {
-      approximateProfiles += 1;
-      notes.push(
-        `Audience "${result.audienceName}": resolved from 1 seed entity (${result.seedNames[0]}). Single-seed profile — treat as approximate.`
-      );
-    } else {
-      unresolvedProfiles += 1;
-      notes.push(
-        `Audience "${result.audienceName}": no locally-relevant seed found. Audience profile omitted from cultural evidence.`
-      );
-    }
-    allEntities.push(...result.entities);
-    allAffinities.push(...result.affinities);
-  }
-
-  if (project.audiences.length) {
-    notes.push(
-      `Audience profiling: ${project.audiences.length} audiences, ${strongProfiles} resolved with multiple seeds (strong), ${approximateProfiles} resolved with single seed (approximate), ${unresolvedProfiles} unresolved.`
-    );
-  }
-
-  // 4. Location-level and project-type entity matches. These are context only,
-  //    never presented as affinity evidence.
-  const [locEntities, typeEntities] = await Promise.all([
-    loc ? client.searchEntities(loc, { limit: 8, type: 'urn:entity:place' }) : Promise.resolve([]),
-    client.searchEntities(project.projectType, { limit: 5 })
-  ]);
-  allEntities.push(...locEntities, ...typeEntities);
-
-  // 5. Cross-domain relationships, only where Qloo returns a scored affinity.
-  const rawCrossDomain = locationResolved
-    ? await client.getCrossDomain({
-        entities: unique([anchor?.name || loc, project.projectType]),
-        audiences: project.audiences.map((a) => a.name),
-        location: resolvedLocation
-      }).catch(() => null)
-    : null;
-  const crossDomain = filterCrossDomain(rawCrossDomain);
-
-  const entities   = uniqueById(allEntities);
-  const affinities = dedupeAffinities([...anchorAffinities, ...anchorCrossDomainAffinities, ...allAffinities]);
-
-  if (locationResolved) {
-    notes.push(`Qloo location resolved as "${resolvedLocation}".`);
-  } else {
-    notes.push(
-      'Qloo could not resolve a location filter for this project; affinity evidence is global rather than local.'
-    );
-  }
-  if (entities.length && !affinities.length) {
-    notes.push(
-      'Qloo returned entity search matches but no scored affinities. Search matches are not affinity evidence.'
-    );
-  }
-
-  const { culturalPatterns, culturalThesis } = deriveCulturalPatterns(affinities, {
-    allowsEventProgramming: projectAllowsEventProgramming(project)
-  });
-  if (culturalPatterns.length) {
-    notes.push(
-      `Cultural patterns group scored place genres into ${culturalPatterns
-        .map((pattern) => pattern.label.toLowerCase())
-        .join(', ')}. They are inferred from affinities, not additional Qloo scores.`
-    );
-  }
-
-  return {
-    source: 'live',
-    entities,
-    affinities,
-    audienceAffinities,
-    crossDomain,
-    culturalPatterns,
-    culturalThesis,
-    notes,
-    insufficient: affinities.length < 3
-  };
 }
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
+function seedToEntity(seed: { uuid?: string; urn?: string; displayName: string; entityType?: string; domain?: string }): QlooEntity {
+  return {
+    id: seed.uuid || seed.urn,
+    uuid: seed.uuid,
+    urn: seed.urn,
+    name: seed.displayName,
+    type: seed.entityType,
+    domain: seed.domain
+  };
+}
+
 function isUsableSeed(entity: { name: string; type?: string; domain?: string }): boolean {
   const name = entity.name.toLowerCase();
 
-  // Reject major tourist landmarks — they represent tourism patterns not local culture
   const LANDMARK_REJECT = [
     'london eye', 'big ben', 'tower bridge', 'buckingham palace',
     'westminster abbey', 'trafalgar square', 'st paul', 'tate modern',
@@ -286,7 +363,6 @@ function isUsableSeed(entity: { name: string; type?: string; domain?: string }):
   ];
   if (LANDMARK_REJECT.some((landmark) => name.includes(landmark))) return false;
 
-  // Reject online-only / national brands — they have no geographic cultural specificity
   const ONLINE_BRAND_REJECT = [
     'wowcher', 'thortful', 'matalan', 'very.co', 'very ', 'sykes',
     'not on the high street', 'notonthehighstreet', 'boux avenue',
@@ -296,7 +372,6 @@ function isUsableSeed(entity: { name: string; type?: string; domain?: string }):
   ];
   if (ONLINE_BRAND_REJECT.some((brand) => name.includes(brand))) return false;
 
-  // Reject entities whose type is clearly national/global rather than local
   const type = (entity.type || '').toLowerCase();
   if (type.includes('country') || type.includes('nation') || type.includes('airport')) return false;
 
@@ -305,41 +380,6 @@ function isUsableSeed(entity: { name: string; type?: string; domain?: string }):
 
 function isUsableAffinity(affinity: QlooAffinity): boolean {
   return isUsableSeed({ name: affinity.target, type: affinity.domain });
-}
-
-function buildAudienceAffinityPool(
-  affinityBatches: QlooAffinity[][]
-): QlooAffinity[] {
-  const scores = new Map<string, { affinity: QlooAffinity; count: number; totalStrength: number }>();
-
-  for (const batch of affinityBatches) {
-    for (const aff of batch) {
-      if (!aff?.target || typeof aff.strength !== 'number') continue;
-      const key = aff.target.toLowerCase();
-      const existing = scores.get(key);
-      if (existing) {
-        existing.count += 1;
-        existing.totalStrength += aff.strength;
-      } else {
-        scores.set(key, { affinity: aff, count: 1, totalStrength: aff.strength });
-      }
-    }
-  }
-
-  return [...scores.values()]
-    .sort((a, b) => {
-      // Prioritise entities that appear across multiple seeds — these are
-      // the culturally consistent signals, not single-seed noise
-      if (b.count !== a.count) return b.count - a.count;
-      return b.totalStrength - a.totalStrength;
-    })
-    .map((entry) => ({
-      ...entry.affinity,
-      // Boost strength for entities that appeared in multiple seed queries
-      strength: entry.count > 1
-        ? Math.min(1, entry.affinity.strength * (1 + (entry.count - 1) * 0.05))
-        : entry.affinity.strength,
-    }));
 }
 
 function filterCrossDomain(crossDomain: any): any {
@@ -366,28 +406,30 @@ function sameCity(a?: string, b?: string): boolean {
   return Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 }
 
-function locationCandidates(project: Project, context?: LocationContext): Array<string | undefined> {
+export function locationCandidates(project: Project, context?: LocationContext): string[] {
   const parts = (context?.displayName || project.location.address || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  const city = project.location.city?.trim();
+  const city = project.location.city?.trim() || context?.city?.trim();
+  const neighborhood = project.location.neighborhood?.trim();
   const country = parts.length >= 2 ? parts[parts.length - 1] : undefined;
-  const state = parts.length >= 3 ? parts[parts.length - 2] : undefined;
+  const rawState = parts.length >= 3 ? parts[parts.length - 2] : undefined;
+  const state = rawState && !/^[A-Z]{1,2}\d|^\d{5}(-\d{4})?$|^[A-Z]{2}\s+\d{5}/i.test(rawState) ? rawState : undefined;
 
   const candidates = [
+    neighborhood && city ? `${neighborhood}, ${city}` : undefined,
+    city && state && country && state.toLowerCase() !== city.toLowerCase()
+      ? `${city}, ${state}, ${country}`
+      : undefined,
     city && country ? `${city}, ${country}` : undefined,
-    city && state && country ? `${city}, ${state}, ${country}` : undefined,
-    city,
-    state && country ? `${state}, ${country}` : undefined,
-    country,
-    undefined
-  ];
+    city
+  ].filter((candidate): candidate is string => Boolean(candidate));
 
   const seen = new Set<string>();
-  const out: Array<string | undefined> = [];
+  const out: string[] = [];
   for (const candidate of candidates) {
-    const key = candidate?.toLowerCase() ?? '__global__';
+    const key = candidate.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(candidate);
@@ -395,14 +437,33 @@ function locationCandidates(project: Project, context?: LocationContext): Array<
   return out;
 }
 
+export function locationScope(
+  project: Project,
+  resolvedLocation?: string
+): 'neighborhood' | 'city' | 'region' | 'country' | 'global' | 'unresolved' {
+  if (!resolvedLocation) return 'unresolved';
+  const value = resolvedLocation.toLowerCase().trim();
+  const neighborhood = project.location.neighborhood?.trim().toLowerCase();
+  const city = project.location.city?.trim().toLowerCase();
+  const startsWith = (candidate: string) =>
+    value === candidate || value.startsWith(`${candidate},`) || value.startsWith(`${candidate} `);
+  if (neighborhood && startsWith(neighborhood)) return 'neighborhood';
+  if (city && startsWith(city)) return 'city';
+  if (/\b(greater|metropolitan|region|regional|county|state|province)\b/.test(value)) {
+    return 'region';
+  }
+  if (city && value.includes(city)) return 'region';
+  return 'region';
+}
+
 function uniqueById(items: QlooEntity[]): QlooEntity[] {
   const seen = new Set<string>();
   const out: QlooEntity[] = [];
-  for (const e of items) {
-    const key = e.id || e.name;
+  for (const entity of items) {
+    const key = normalizeQlooId(entity.urn || entity.uuid || entity.id) || entity.name;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(e);
+    out.push(entity);
   }
   return out.slice(0, 40);
 }
@@ -410,7 +471,7 @@ function uniqueById(items: QlooEntity[]): QlooEntity[] {
 function dedupeAffinities(items: QlooAffinity[]): QlooAffinity[] {
   const map = new Map<string, QlooAffinity>();
   for (const item of items) {
-    const key = item.targetId || item.target;
+    const key = normalizeQlooId(item.urn || item.targetId) || item.target;
     const existing = map.get(key);
     if (!existing || item.strength > existing.strength) {
       map.set(key, item);

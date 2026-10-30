@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
       operatorType: ['developer', 'hospitality', 'retail', 'operator'].includes(body.operatorType)
         ? body.operatorType
         : undefined,
+      organisationProfiles: Array.isArray(body.organisationProfiles) ? body.organisationProfiles : [],
+      primaryProfileId: body.primaryProfileId || undefined,
+      decisionFrame: body.decisionFrame || undefined,
+      concept: body.concept || undefined,
       objective: body.objective || '',
       investmentIntent: body.investmentIntent || undefined,
       budgetRange: body.budgetRange,

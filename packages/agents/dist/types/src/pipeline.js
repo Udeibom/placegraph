@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ProvenanceNodeSchema } from './provenance';
+import { AudienceResolutionSchema, CulturalRelationshipSchema, DecisionBriefSchema, DecisionDeliverableSchema, DecisionFrameSchema, EvidenceClaimSchema, EvidenceQualitySchema, OrganisationProfileSchema, QlooFailureSchema, StageStateSchema } from './intelligence';
 export const OpportunityTypeSchema = z.enum([
     'alignment',
     'whitespace',
@@ -21,6 +22,12 @@ export const OpportunitySchema = z.object({
     qlooEstablished: z.array(z.string()).default([]),
     locallyEstablished: z.array(z.string()).default([]),
     inferred: z.array(z.string()).default([]),
+    relationships: z.array(z.string()).default([]),
+    evidenceClaimIds: z.array(z.string()).default([]),
+    commercialLogic: z.string().optional(),
+    validationRequirements: z.array(z.string()).default([]),
+    confidence: EvidenceQualitySchema.optional(),
+    eligible: z.boolean().default(true),
     provenance: ProvenanceNodeSchema.optional()
 });
 export const StrategySchema = z.object({
@@ -49,8 +56,9 @@ export const StrategySchema = z.object({
     opportunityCaptured: z.string().optional(),
     whyWeakerThanAlternatives: z.string().optional(),
     qlooEvidenceSummary: z.string().optional(),
-    evaluationScore: z.number().optional(),
-    qlooChangedDecision: z.string().optional()
+    opportunityId: z.string().optional(),
+    evidenceClaimIds: z.array(z.string()).default([]),
+    decisionFit: z.string().optional()
 });
 export const ExperienceRequirementSchema = z.object({
     id: z.string(),
@@ -170,6 +178,9 @@ export const EvidenceGateSchema = z.object({
     llmAvailable: z.boolean(),
     intelligenceMode: z.enum(['live', 'mixed', 'template']),
     allowConfidentRecommendation: z.boolean(),
+    qlooStatus: z.enum(['ready', 'degraded', 'failed', 'missing']).optional(),
+    blockedReason: z.string().optional(),
+    contractFailure: QlooFailureSchema.optional(),
     warnings: z.array(z.string()).default([]),
     evidenceSummary: z.object({
         canRecommend: z.boolean(),
@@ -208,8 +219,15 @@ export const CulturalPatternSchema = z.object({
     genres: z.array(z.string()).default([]),
     implication: z.string()
 });
+export const QlooLocationResolutionSchema = z.object({
+    query: z.string().optional(),
+    resolved: z.boolean().default(false),
+    scope: z.enum(['neighborhood', 'city', 'region', 'country', 'global', 'unresolved']).default('unresolved'),
+    candidatesTried: z.array(z.string()).default([])
+});
 export const QlooContextSchema = z.object({
-    source: z.enum(['live', 'mock', 'mixed']).default('mock'),
+    source: z.enum(['live', 'mock', 'mixed', 'failed', 'unavailable']).default('unavailable'),
+    locationResolution: QlooLocationResolutionSchema.optional(),
     entities: z.array(z.any()).default([]),
     affinities: z.array(z.any()).default([]),
     audienceAffinities: z.record(z.string(), z.array(z.any())).optional(),
@@ -217,7 +235,11 @@ export const QlooContextSchema = z.object({
     culturalPatterns: z.array(CulturalPatternSchema).default([]),
     culturalThesis: z.string().default(''),
     notes: z.array(z.string()).default([]),
-    insufficient: z.boolean().default(false)
+    insufficient: z.boolean().default(false),
+    failure: QlooFailureSchema.optional(),
+    audienceResolutions: z.array(AudienceResolutionSchema).default([]),
+    evidenceClaims: z.array(EvidenceClaimSchema).default([]),
+    environment: z.string().optional()
 });
 export const CounterfactualSchema = z.object({
     summary: z.string(),
@@ -225,6 +247,66 @@ export const CounterfactualSchema = z.object({
     culturalStrategy: z.string(),
     whatQlooChanged: z.array(z.string()).default([]),
     caveat: z.string()
+});
+// ─── Operator-specific output types ──────────────────────────────────────────
+export const RetailCategorySchema = z.object({
+    category: z.string(),
+    alignment: z.string(),
+    evidence: z.array(z.string()).default([]),
+    confidence: z.enum(['strong', 'moderate', 'weak']).default('moderate'),
+});
+export const RetailStrategyOutputSchema = z.object({
+    positioning: z.string(),
+    categoryMix: z.array(RetailCategorySchema).default([]),
+    formatRecommendation: z.string(),
+    communityFit: z.string(),
+    localCollaborations: z.array(z.string()).default([]),
+    evidenceSummary: z.string(),
+    gaps: z.array(z.string()).default([]),
+});
+export const ProgrammingActivitySchema = z.object({
+    activity: z.string(),
+    rationale: z.string(),
+    audience: z.string(),
+    frequency: z.string(),
+    spaceRequired: z.string().optional(),
+    evidence: z.array(z.string()).default([]),
+});
+export const ExperienceMixItemSchema = z.object({
+    type: z.string(),
+    rationale: z.string(),
+    proportion: z.enum(['primary', 'secondary', 'supplementary']).default('secondary'),
+    evidence: z.array(z.string()).default([]),
+});
+export const TenantRationaleSchema = z.object({
+    tenantType: z.string(),
+    why: z.string(),
+    evidence: z.array(z.string()).default([]),
+});
+export const OperatorOutputSchema = z.object({
+    programmingModel: z.string(),
+    experienceMix: z.array(ExperienceMixItemSchema).default([]),
+    activations: z.array(ProgrammingActivitySchema).default([]),
+    tenantRationale: z.array(TenantRationaleSchema).default([]),
+    evidenceSummary: z.string(),
+    whatToStop: z.array(z.string()).default([]),
+});
+export const HospitalityOutputSchema = z.object({
+    conceptIdentity: z.string(),
+    fbStrategy: z.string(),
+    daypartStrategy: z.string(),
+    programmingModel: z.string(),
+    atmosphereNotes: z.string(),
+    evidenceSummary: z.string(),
+});
+export const PlaceProfileSchema = z.object({
+    placeIdentity: z.string(),
+    communityProfile: z.string(),
+    culturalAssets: z.array(z.string()).default([]),
+    commercialSupply: z.string(),
+    behaviouralSignals: z.string(),
+    unmetNeeds: z.array(z.string()).default([]),
+    evidenceQuality: z.enum(['strong', 'moderate', 'insufficient']).default('moderate'),
 });
 export const AnalysisSnapshotSchema = z.object({
     runId: z.string(),
@@ -240,6 +322,15 @@ export const AnalysisSnapshotSchema = z.object({
     ]).default('idle'),
     locationContext: LocationContextSchema.optional(),
     qlooContext: QlooContextSchema.optional(),
+    decisionFrame: DecisionFrameSchema.optional(),
+    organisationProfiles: z.array(OrganisationProfileSchema).default([]),
+    primaryProfileId: z.string().optional(),
+    audienceResolutions: z.array(AudienceResolutionSchema).default([]),
+    evidenceClaims: z.array(EvidenceClaimSchema).default([]),
+    relationships: z.array(CulturalRelationshipSchema).default([]),
+    stageStates: z.array(StageStateSchema).default([]),
+    decisionBrief: DecisionBriefSchema.optional(),
+    deliverables: z.array(DecisionDeliverableSchema).default([]),
     landscapes: z
         .object({
         existing: CulturalLandscapeSchema,
@@ -263,7 +354,12 @@ export const AnalysisSnapshotSchema = z.object({
     intelligenceMode: z.enum(['live', 'mixed', 'template']).optional(),
     progress: JobProgressSchema.optional(),
     error: z.string().optional(),
-    updatedAt: z.string()
+    updatedAt: z.string(),
+    // Operator-specific outputs (only one will be populated based on operatorType)
+    placeProfile: PlaceProfileSchema.optional(),
+    retailOutput: RetailStrategyOutputSchema.optional(),
+    operatorOutput: OperatorOutputSchema.optional(),
+    hospitalityOutput: HospitalityOutputSchema.optional(),
 });
 export const PIPELINE_STAGES = [
     { id: 'place', label: 'Brief' },
