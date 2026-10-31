@@ -5,7 +5,7 @@ import { nowIso } from '@placegraph/core';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const maxDuration = 180;
+export const maxDuration = 300;
 
 type Action = 'analyze' | 'design' | 'visualize' | 'review' | 'counterfactual';
 

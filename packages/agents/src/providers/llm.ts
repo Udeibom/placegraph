@@ -58,10 +58,14 @@ function sleep(ms: number) {
 }
 
 const TOKEN_WINDOW_MS = 60_000;
-const requestHistory: Array<{ at: number; tokens: number }> = [];
+type TokenReservation = { at: number; tokens: number };
+const requestHistory: TokenReservation[] = [];
 
-async function reserveTokenBudget(tokens: number, limit: number): Promise<void> {
-  if (process.env.GROQ_TOKEN_THROTTLE === '0') return;
+async function reserveTokenBudget(
+  tokens: number,
+  limit: number
+): Promise<TokenReservation | null> {
+  if (process.env.GROQ_TOKEN_THROTTLE === '0') return null;
   let announced = false;
   while (true) {
     const now = Date.now();
@@ -70,8 +74,9 @@ async function reserveTokenBudget(tokens: number, limit: number): Promise<void> 
     }
     const used = requestHistory.reduce((total, entry) => total + entry.tokens, 0);
     if (!requestHistory.length || used + tokens <= limit) {
-      requestHistory.push({ at: now, tokens });
-      return;
+      const reservation = { at: now, tokens };
+      requestHistory.push(reservation);
+      return reservation;
     }
     const waitMs = Math.max(750, requestHistory[0].at + TOKEN_WINDOW_MS - now + 250);
     if (!announced) {
@@ -82,6 +87,12 @@ async function reserveTokenBudget(tokens: number, limit: number): Promise<void> 
     }
     await sleep(waitMs);
   }
+}
+
+function releaseTokenBudget(reservation: TokenReservation | null): void {
+  if (!reservation) return;
+  const index = requestHistory.indexOf(reservation);
+  if (index >= 0) requestHistory.splice(index, 1);
 }
 
 function parseResetDuration(value: string | null): number | null {
@@ -101,6 +112,7 @@ export class LLMProvider {
   private config: LLMConfig;
   private resolvedModel: string | null = null;
   private tokenLimit: number;
+  private exhaustedModels = new Set<string>();
 
   constructor(config: LLMConfig) {
     this.config = config;
@@ -125,7 +137,7 @@ export class LLMProvider {
           'openai/gpt-oss-20b',
           'llama-3.3-70b-versatile',
           'llama-3.1-8b-instant'
-        ].filter((m): m is string => Boolean(m))
+        ].filter((m): m is string => typeof m === 'string' && !this.exhaustedModels.has(m))
       )
     );
   }
@@ -145,18 +157,7 @@ export class LLMProvider {
     }
 
     const maxTokens = Math.max(256, Math.min(opts?.maxTokens ?? 2200, 4000));
-    const candidates = Array.from(
-      new Set(
-        [
-          this.resolvedModel,
-          this.config.model,
-          'openai/gpt-oss-120b',
-          'openai/gpt-oss-20b',
-          'llama-3.3-70b-versatile',
-          'llama-3.1-8b-instant'
-        ].filter((m): m is string => Boolean(m))
-      )
-    );
+    const candidates = this.modelCandidates();
 
     let lastFailure: LLMFailure | undefined;
     try {
@@ -178,7 +179,7 @@ export class LLMProvider {
               }
             };
           }
-          await reserveTokenBudget(estimatedTokens, this.tokenLimit);
+          const reservation = await reserveTokenBudget(estimatedTokens, this.tokenLimit);
 
           const body: Record<string, unknown> = {
             model,
@@ -201,6 +202,7 @@ export class LLMProvider {
               body: JSON.stringify(body)
             });
           } catch (err) {
+            releaseTokenBudget(reservation);
             lastFailure = {
               kind: 'upstream',
               message: String(err),
@@ -231,6 +233,7 @@ export class LLMProvider {
           }
 
           const text = await res.text().catch(() => '');
+          releaseTokenBudget(reservation);
           console.warn(`Groq API error (${model}):`, res.status, text.slice(0, 200));
           const tooLarge =
             res.status === 413 ||
@@ -245,25 +248,46 @@ export class LLMProvider {
             text.includes('model_not_found') ||
             text.includes('does not exist') ||
             text.includes('do not have access');
+          const dailyLimit =
+            res.status === 429 &&
+            (/tokens per day|TPD/i.test(text) || text.includes('daily'));
+          const invalidJson =
+            res.status === 400 &&
+            (text.includes('json_validate_failed') ||
+              text.includes('Failed to validate JSON'));
 
           lastFailure = {
-            kind: tooLarge
-              ? 'budget'
-              : authFailed
-                ? 'authentication'
-                : rateLimited
-                  ? 'rate_limit'
-                  : modelUnavailable
-                    ? 'unavailable'
-                    : 'upstream',
+            kind: invalidJson
+              ? 'parse'
+              : tooLarge
+                ? 'budget'
+                : authFailed
+                  ? 'authentication'
+                  : rateLimited
+                    ? 'rate_limit'
+                    : modelUnavailable
+                      ? 'unavailable'
+                      : 'upstream',
             status: res.status,
             message: text.slice(0, 500) || `Groq returned HTTP ${res.status}.`,
             model,
-            retryable: rateLimited || res.status >= 500
+            retryable: invalidJson || (rateLimited && !dailyLimit) || res.status >= 500
           };
 
           if (authFailed) return { content: '', model, failure: lastFailure };
-          if (modelUnavailable) break;
+          if (modelUnavailable) {
+            this.exhaustedModels.add(model);
+            break;
+          }
+          if (dailyLimit) {
+            this.exhaustedModels.add(model);
+            console.warn(`Groq daily token limit reached on ${model}; switching model`);
+            break;
+          }
+          if (invalidJson) {
+            console.warn(`Groq returned invalid JSON on ${model}; switching model`);
+            break;
+          }
 
           if (tooLarge) {
             const reduced = Math.max(256, Math.floor(requestMaxTokens / 2));
