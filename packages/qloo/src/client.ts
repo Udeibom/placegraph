@@ -1,6 +1,8 @@
 export interface QlooConfig {
   baseUrl: string;
   apiKey: string;
+  /** Additional keys are rotated automatically after a 429. */
+  apiKeys?: string[];
   timeoutMs?: number;
   cacheTtlMs?: number;
   /** Optional concurrency gate. Wrap each HTTP call with this to limit parallelism. */
@@ -184,7 +186,12 @@ function jitterMs(ms: number, range = 300): number {
 }
 
 function parseRateLimitReset(headers: Headers): number | null {
-  for (const name of ['retry-after', 'x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens']) {
+  for (const name of [
+    'retry-after',
+    'x-second-ratelimit-reset',
+    'x-ratelimit-reset-requests',
+    'x-ratelimit-reset-tokens'
+  ]) {
     const raw = headers.get(name);
     if (!raw) continue;
     const seconds = parseFloat(raw);
@@ -220,15 +227,17 @@ function classifyStatus(status: number): { kind: QlooErrorKind; retryable: boole
 
 export class QlooClient {
   private baseUrl: string;
-  private apiKey: string;
+  private apiKeys: string[];
+  private keyIndex = 0;
   private timeoutMs: number;
   private cacheTtlMs: number;
   private cache = new Map<string, { expires: number; data: any }>();
   private throttle: <T>(fn: () => Promise<T>) => Promise<T>;
+  private rateLimitedUntil = 0;
 
   constructor(config: QlooConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
-    this.apiKey = config.apiKey;
+    this.apiKeys = (config.apiKeys?.length ? config.apiKeys : [config.apiKey]).filter(Boolean);
     this.timeoutMs = config.timeoutMs ?? 12000;
     this.cacheTtlMs = config.cacheTtlMs ?? 5 * 60 * 1000;
     this.throttle = config.throttle ?? ((fn) => fn());
@@ -241,8 +250,40 @@ export class QlooClient {
   private headers() {
     return {
       Accept: 'application/json',
-      'X-Api-Key': this.apiKey
+      'X-Api-Key': this.apiKeys[this.keyIndex] ?? ''
     };
+  }
+
+  private rotateApiKey(): boolean {
+    if (this.apiKeys.length <= 1) return false;
+    this.keyIndex = (this.keyIndex + 1) % this.apiKeys.length;
+    console.info(
+      `[qloo] rotating to API key ${this.keyIndex + 1}/${this.apiKeys.length} after 429`
+    );
+    return true;
+  }
+
+  /**
+   * Read Qloo's per-second quota headers so the next request waits out the
+   * current window instead of immediately earning another 429.
+   */
+  private observeRateLimit(headers: Headers): void {
+    const remainingRaw = headers.get('x-second-ratelimit-remaining');
+    if (remainingRaw === null) return;
+    const remaining = Number.parseFloat(remainingRaw);
+    if (!Number.isFinite(remaining) || remaining > 0) return;
+    const resetRaw = headers.get('x-second-ratelimit-reset');
+    const reset = resetRaw === null ? 1 : Number.parseFloat(resetRaw);
+    if (!Number.isFinite(reset) || reset < 0) return;
+    this.rateLimitedUntil = Math.max(
+      this.rateLimitedUntil,
+      Date.now() + Math.ceil(reset * 1000) + 50
+    );
+  }
+
+  private async waitForRateLimitWindow(): Promise<void> {
+    const wait = this.rateLimitedUntil - Date.now();
+    if (wait > 0) await sleep(wait);
   }
 
   private cacheKey(path: string, params: Record<string, string>): string {
@@ -270,7 +311,6 @@ export class QlooClient {
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [k, v] of Object.entries(clean)) url.searchParams.set(k, v);
     const urlStr = url.toString();
-    const headers = this.headers();
     const timeoutMs = this.timeoutMs;
 
     // Exponential backoff constants: [1s, 2s, 4s] + jitter
@@ -282,9 +322,10 @@ export class QlooClient {
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         let res: Response;
         try {
+          await this.waitForRateLimitWindow();
           res = await fetch(urlStr, {
             method: 'GET',
-            headers,
+            headers: this.headers(),
             signal: AbortSignal.timeout(timeoutMs)
           });
         } catch (err) {
@@ -301,6 +342,8 @@ export class QlooClient {
             message: `Qloo request failed before a response: ${String(err)}`
           });
         }
+
+        this.observeRateLimit(res.headers);
 
         if (res.ok) {
           let parsed: T;
@@ -322,12 +365,25 @@ export class QlooClient {
         const { kind, retryable } = classifyStatus(res.status);
 
         if (res.status === 429 && attempt < MAX_RETRIES - 1) {
-          // Respect rate-limit headers; fall back to backoff
+          // Respect rate-limit headers; fall back to backoff.  When another key
+          // is available, rotate to it so the next attempt starts with a fresh
+          // per-second budget.
           const headerWait = parseRateLimitReset(res.headers);
-          const waitMs = jitterMs(Math.max(
-            BACKOFFS[Math.min(attempt, BACKOFFS.length - 1)],
-            headerWait ?? 0
-          ));
+          const rotated = this.rotateApiKey();
+          let waitMs: number;
+          if (rotated) {
+            this.rateLimitedUntil = 0;
+            waitMs = jitterMs(Math.max(headerWait ?? 0, 200), 100);
+          } else {
+            this.rateLimitedUntil = Math.max(
+              this.rateLimitedUntil,
+              Date.now() + (headerWait ?? 0)
+            );
+            waitMs = jitterMs(Math.max(
+              BACKOFFS[Math.min(attempt, BACKOFFS.length - 1)],
+              headerWait ?? 0
+            ));
+          }
           console.info(
             `[qloo] 429 rate limit (attempt ${attempt + 1}/${MAX_RETRIES}); waiting ${Math.round(waitMs / 1000)}s`
           );
@@ -794,9 +850,19 @@ export function qlooEnvironmentName(): string {
   return qlooEnvironment(base);
 }
 
+export function configuredQlooApiKeys(): string[] {
+  const raw = process.env.QLOO_API_KEYS || '';
+  const keys = raw
+    .split(/[\s,]+/)
+    .map((key) => key.trim())
+    .filter(Boolean);
+  if (keys.length) return keys;
+  return process.env.QLOO_API_KEY ? [process.env.QLOO_API_KEY] : [];
+}
+
 export function missingQlooConfigError(): QlooApiError {
   const missing: string[] = [];
-  if (!process.env.QLOO_API_KEY) missing.push('QLOO_API_KEY');
+  if (!configuredQlooApiKeys().length) missing.push('QLOO_API_KEY or QLOO_API_KEYS');
   if (!process.env.QLOO_API_BASE_URL && process.env.NODE_ENV === 'production') {
     missing.push('QLOO_API_BASE_URL');
   }
@@ -815,14 +881,19 @@ export function createQlooClient(
   const baseUrl =
     process.env.QLOO_API_BASE_URL ||
     (process.env.NODE_ENV === 'production' ? '' : 'https://hackathon.api.qloo.com');
-  const apiKey = process.env.QLOO_API_KEY || '';
+  const apiKeys = configuredQlooApiKeys();
   if (!baseUrl) throw missingQlooConfigError();
-  if (!apiKey) throw missingQlooConfigError();
-  return new QlooClient({ baseUrl, apiKey, throttle: opts?.throttle });
+  if (!apiKeys.length) throw missingQlooConfigError();
+  return new QlooClient({
+    baseUrl,
+    apiKey: apiKeys[0],
+    apiKeys,
+    throttle: opts?.throttle
+  });
 }
 
 export function hasQlooKey(): boolean {
-  return Boolean(process.env.QLOO_API_KEY);
+  return configuredQlooApiKeys().length > 0;
 }
 
 export function normalizeQlooId(id: string | undefined): string | undefined {

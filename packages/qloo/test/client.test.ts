@@ -90,10 +90,54 @@ test('production client requires an explicit base URL', () => {
 
 test('hasQlooKey reflects the runtime environment', () => {
   const original = process.env.QLOO_API_KEY;
+  const originalPlural = process.env.QLOO_API_KEYS;
   delete process.env.QLOO_API_KEY;
+  delete process.env.QLOO_API_KEYS;
   assert.equal(hasQlooKey(), false);
   process.env.QLOO_API_KEY = 'test-key';
   assert.equal(hasQlooKey(), true);
+  delete process.env.QLOO_API_KEY;
+  process.env.QLOO_API_KEYS = 'first-key, second-key';
+  assert.equal(hasQlooKey(), true);
   if (original === undefined) delete process.env.QLOO_API_KEY;
   else process.env.QLOO_API_KEY = original;
+  if (originalPlural === undefined) delete process.env.QLOO_API_KEYS;
+  else process.env.QLOO_API_KEYS = originalPlural;
+});
+
+test('rotates to the next key after a 429', async () => {
+  const originalFetch = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const key = (init?.headers as Record<string, string>)['X-Api-Key'];
+    seen.push(key);
+    if (key === 'key-a') {
+      return new Response(JSON.stringify({ error_msg: 'Rate limit exceeded' }), {
+        status: 429,
+        headers: {
+          'content-type': 'application/json',
+          'x-second-ratelimit-reset': '0.01',
+          'x-second-ratelimit-remaining': '0'
+        }
+      });
+    }
+    return new Response(JSON.stringify({ results: [] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'x-second-ratelimit-remaining': '9' }
+    });
+  }) as typeof fetch;
+
+  try {
+    const rotated = new QlooClient({
+      baseUrl: 'https://hackathon.api.qloo.com',
+      apiKey: 'key-a',
+      apiKeys: ['key-a', 'key-b'],
+      timeoutMs: 1000,
+      cacheTtlMs: 0
+    });
+    await rotated.searchEntities('coffee', { take: 1 });
+    assert.deepEqual(seen, ['key-a', 'key-b']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

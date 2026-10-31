@@ -1,13 +1,19 @@
 /**
  * RequestQueue — limits concurrent Qloo HTTP calls and retries on 429.
  *
- * Default concurrency: 2.  Each call waits until a slot is free, then runs.
+ * Default concurrency: 1.  Each call waits until a slot is free, then runs.
+ * Calls are also paced by a minimum interval (default 120 ms) so a single
+ * serverless instance cannot burst past Qloo's 10 requests/second limit.
+ *
  * On 429 the slot is held and the call retries with exponential backoff + jitter
  * (1 s, 2 s, 4 s).  The retry-after / x-ratelimit-reset-* headers are respected
  * when present.
  *
+ * This is per-process pacing.  Vercel may run several instances at once, so
+ * key rotation (see QlooClient) provides additional headroom across instances.
+ *
  * Usage:
- *   const queue = new RequestQueue(2);
+ *   const queue = new RequestQueue(1, 120);
  *   const result = await queue.run(() => fetch(...));
  */
 
@@ -17,7 +23,12 @@ export interface QueuedCallResult<T> {
 }
 
 function parseRetryAfterMs(headers: Headers): number | null {
-  for (const name of ['retry-after', 'x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens']) {
+  for (const name of [
+    'retry-after',
+    'x-second-ratelimit-reset',
+    'x-ratelimit-reset-requests',
+    'x-ratelimit-reset-tokens'
+  ]) {
     const raw = headers.get(name);
     if (!raw) continue;
     // Numeric seconds
@@ -38,11 +49,26 @@ const BACKOFF_MS = [1_000, 2_000, 4_000];
 
 export class RequestQueue {
   private concurrency: number;
+  private minIntervalMs: number;
   private active = 0;
   private queue: Array<() => void> = [];
+  private nextStartAt = 0;
 
-  constructor(concurrency = 2) {
-    this.concurrency = concurrency;
+  constructor(concurrency = 1, minIntervalMs = 120) {
+    this.concurrency = Math.max(1, concurrency);
+    this.minIntervalMs = Math.max(0, minIntervalMs);
+  }
+
+  /**
+   * Reserve the next request start slot.  Called after a concurrency slot is
+   * acquired so that requests are spaced even when slots are available.
+   */
+  private async pace(): Promise<void> {
+    const now = Date.now();
+    const startAt = Math.max(now, this.nextStartAt);
+    this.nextStartAt = startAt + this.minIntervalMs;
+    const wait = startAt - now;
+    if (wait > 0) await sleep(wait);
   }
 
   private acquire(): Promise<void> {
@@ -74,6 +100,7 @@ export class RequestQueue {
   async run<T>(fn: () => Promise<T>): Promise<T> {
     await this.acquire();
     try {
+      await this.pace();
       return await fn();
     } finally {
       this.release();
@@ -95,6 +122,7 @@ export class RequestQueue {
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         let res: Response;
         try {
+          await this.pace();
           res = await fn(attempt);
         } catch (err) {
           // Network error — retry with backoff
@@ -135,8 +163,12 @@ let _globalQueue: RequestQueue | null = null;
 
 export function getQlooRequestQueue(): RequestQueue {
   if (!_globalQueue) {
-    const concurrency = Number(process.env.QLOO_CONCURRENCY ?? 2);
-    _globalQueue = new RequestQueue(Number.isFinite(concurrency) ? concurrency : 2);
+    const concurrency = Number(process.env.QLOO_CONCURRENCY ?? 1);
+    const minIntervalMs = Number(process.env.QLOO_MIN_INTERVAL_MS ?? 120);
+    _globalQueue = new RequestQueue(
+      Number.isFinite(concurrency) ? concurrency : 1,
+      Number.isFinite(minIntervalMs) ? minIntervalMs : 120
+    );
   }
   return _globalQueue;
 }

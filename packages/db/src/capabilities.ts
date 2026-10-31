@@ -8,7 +8,7 @@ export function capabilities() {
   const vercel = Boolean(process.env.VERCEL);
   return {
     groq: Boolean(process.env.GROQ_API_KEY),
-    qloo: Boolean(process.env.QLOO_API_KEY),
+    qloo: Boolean(process.env.QLOO_API_KEY || process.env.QLOO_API_KEYS),
     hf: Boolean(process.env.HF_TOKEN),
     supabase,
     storage: supabase ? 'supabase' : vercel ? 'ephemeral' : 'disk'

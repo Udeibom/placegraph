@@ -3,7 +3,10 @@
   "ui": "tui",
   "globalEnv": [
     "QLOO_API_KEY",
+    "QLOO_API_KEYS",
     "QLOO_API_BASE_URL",
+    "QLOO_CONCURRENCY",
+    "QLOO_MIN_INTERVAL_MS",
     "GROQ_API_KEY",
     "GROQ_MODEL",
     "GROQ_VISION_MODEL",

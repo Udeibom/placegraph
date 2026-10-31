@@ -64,11 +64,16 @@ Without API keys the pipeline still runs: OSM provides location context, Qloo mo
 | Variable | Effect if missing |
 |---|---|
 | `QLOO_API_KEY` | Mock cultural affinities, clearly labelled as insufficient |
+| `QLOO_API_KEYS` | Optional comma-separated keys; rotated automatically after a 429 |
 | `QLOO_API_BASE_URL` | Defaults to `https://hackathon.api.qloo.com` — must be set explicitly for production |
+| `QLOO_CONCURRENCY` | Defaults to `1`; raise only if you are sure of the per-key limit |
+| `QLOO_MIN_INTERVAL_MS` | Defaults to `120`; minimum spacing between Qloo requests |
 | `GROQ_API_KEY` | Deterministic fallback opportunities, strategies, and architecture |
 | `HF_TOKEN` | Spatial concept diagram instead of a photoreal render |
 
 See `.env.example` for all variables. Copy to `.env.local` at the repo root or `apps/web/.env.local`.
+
+> **Vercel:** changing an environment variable does not affect the running deployment until you redeploy. Add keys to the Production environment (and Preview if needed), then redeploy. Qloo's hackathon limit is 10 requests/second per key, so pacing and `QLOO_API_KEYS` rotation are safer than swapping a single key.
 
 > **Note:** The Qloo key currently configured is hackathon-scoped. Production use requires a production-scoped key and an explicit `QLOO_API_BASE_URL`. See `docs/INTELLIGENCE_SPEC.md`.
 

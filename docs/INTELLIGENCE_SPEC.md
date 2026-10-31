@@ -443,7 +443,7 @@ Rules:
 
 ### 5.4 Configuration
 
-- Require an explicit `QLOO_API_KEY` and `QLOO_API_BASE_URL` in live environments.
+- Require an explicit `QLOO_API_KEY` (or `QLOO_API_KEYS` for rotation) and `QLOO_API_BASE_URL` in live environments.
 - Permit hackathon and production hosts only through explicit configuration.
 - Never log the key.
 - Record the base environment and key scope in diagnostics without recording the secret.
