@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import type { Project } from '@placegraph/types';
-import { createProject, listProjects } from '@/lib/api';
-import { SAMPLE_PROJECT } from '@/lib/sampleProject';
+import { listProjects } from '@/lib/api';
+
 
 const TYPE_LABELS: Record<string, string> = {
   restaurant:  'Restaurant',
@@ -26,24 +25,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function Home() {
-  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [seeding, setSeeding]   = useState(false);
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
     listProjects().then(setProjects).catch(() => setProjects([])).finally(() => setLoading(false));
   }, []);
 
-  async function openSample() {
-    setSeeding(true);
-    try {
-      const project = await createProject(SAMPLE_PROJECT);
-      router.push(`/projects/${project.id}`);
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   return (
     <>
@@ -89,15 +77,8 @@ export default function Home() {
           <Link href="/projects/new" className="pg-btn pg-btn-lg">
             Start a project
           </Link>
-          <button
-            type="button"
-            onClick={openSample}
-            disabled={seeding}
-            className="pg-btn pg-btn-ghost pg-btn-lg"
-          >
-            {seeding ? 'Opening…' : 'Open Clerkenwell sample brief'}
-          </button>
         </div>
+
       </section>
 
       {/* Pipeline overview */}
@@ -171,14 +152,12 @@ export default function Home() {
               No projects yet.
             </p>
             <p style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '1.5rem', maxWidth: '30rem', margin: '0 auto 1.5rem' }}>
-              Create a project from a real property brief, or open the Clerkenwell warehouse sample to explore the full pipeline.
+              Create a project from a real property brief to explore the full analysis pipeline.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link href="/projects/new" className="pg-btn">Start a project</Link>
-              <button type="button" onClick={openSample} disabled={seeding} className="pg-btn pg-btn-ghost">
-                {seeding ? 'Opening…' : 'Open sample'}
-              </button>
             </div>
+
           </div>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
