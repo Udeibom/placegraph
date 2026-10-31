@@ -26,6 +26,17 @@ function locLabel(project: Project): string {
   );
 }
 
+/** Returns a human-readable label for the project/business type.
+ *  Avoids raw 'other' appearing in interpolated strings (e.g. "a other"). */
+function sanitizeProjectType(project: Project): string {
+  const t = project.projectType || 'other';
+  if (t === 'other') {
+    return project.businessType?.trim() || project.name?.trim() || 'commercial venue';
+  }
+  return t;
+}
+
+
 function audienceLine(project: Project): string {
   if (!project.audiences?.length) return 'people already associated with the area and visitors the project hopes to attract';
   return project.audiences.map((a) => a.name).join(', ');
@@ -53,7 +64,9 @@ export function fallbackLandscapes(project: Project, snapshot: Pick<AnalysisSnap
     })),
     audiencesServed: project.audiences?.map((a) => a.name) || ['Local residents', 'Passers-by'],
     crowdedPatterns: crowded,
-    gaps: ['Experiences suggested by cultural affinities but weakly represented in nearby POIs'],
+    gaps: pois.length
+      ? ['Categories suggested by cultural affinities but not strongly evidenced in the available nearby POIs (coverage may be partial — absence should not be treated as confirmed unmet demand).']
+      : ['Nearby commercial POI data is sparse; gap claims cannot be made with confidence.'],
     evidenceQuality: snapshot.locationContext?.evidenceQuality || 'moderate'
   };
 
@@ -73,13 +86,16 @@ export function fallbackLandscapes(project: Project, snapshot: Pick<AnalysisSnap
     })),
     audiencesServed: project.audiences?.map((a) => a.name) || [],
     crowdedPatterns: [],
-    gaps: crowded.length ? [`Limited overlap between observed ${crowded[0]} supply and cross-domain affinities`] : [],
+    gaps: crowded.length
+      ? [`Limited overlap between observed ${crowded[0]} supply and cross-domain affinities — verify with field observation before asserting a gap.`]
+      : [],
     evidenceQuality: snapshot.qlooContext?.insufficient ? 'insufficient' : snapshot.qlooContext?.source === 'live' ? 'strong' : 'moderate'
   };
 
+  const typeLabel = sanitizeProjectType(project);
   const proposed: CulturalLandscape = {
     type: 'proposed',
-    summary: `A new ${project.projectType} at ${place} could reinforce the strongest local pattern, occupy cultural whitespace, or become a destination for ${audienceLine(project)}. Which is defensible depends on the objective: ${project.objective}`,
+    summary: `A new ${typeLabel} at ${place} could reinforce the strongest local pattern, occupy cultural whitespace, or become a destination for ${audienceLine(project)}. Which is defensible depends on the objective: ${project.objective}`,
     experiences: [],
     audiencesServed: [],
     crowdedPatterns: [],
@@ -118,7 +134,7 @@ export function fallbackOpportunities(project: Project, runId: string, snapshot:
       assumptions: ['Existing venues succeed partly because of cultural fit, not only convenience.'],
       uncertainties: ['Whether the apparent local pattern is preference or developer copycatting.'],
       competitors: pois.slice(0, 4),
-      rationale: `Align the ${project.projectType} with patterns already present around ${place}, using Qloo only to sharpen who that local culture actually overlaps with.`,
+      rationale: `Align the ${sanitizeProjectType(project)} with patterns already present around ${place}, using Qloo only to sharpen who that local culture actually overlaps with.`,
       qlooEstablished: affinities.slice(0, 4),
       locallyEstablished: pois.slice(0, 4),
       inferred: ['Reinforcing the local pattern may be more appropriate than importing a foreign concept.'],
@@ -191,6 +207,7 @@ export function fallbackStrategies(
   opportunities: Opportunity[],
   qloo?: QlooContext
 ): Strategy[] {
+  const place = locLabel(project);
   const patterns = qloo?.culturalPatterns || [];
   const thesis = qloo?.culturalThesis?.trim();
   const allowsEvents = projectAllowsEventProgramming(project);
@@ -200,48 +217,79 @@ export function fallbackStrategies(
     .map((pattern) => `${pattern.label} (${pattern.places.slice(0, 2).join(', ')})`)
     .join('; ');
 
+  const typeLabel = sanitizeProjectType(project);
+  const isRetail = project.operatorType === 'retail' || project.projectType === 'retail';
+  const isDiscoverMode = project.mode === 'discover';
+
   return opportunities.map((op) => {
     const hybrid = op.type === 'whitespace' && patterns.length >= 2;
     const differentiation = hybrid
-      ? `A hybrid of ${patternNames.join(' + ')} that is not a single-use ${project.projectType}.`
+      ? isRetail
+        ? `A category/format combination not clearly offered as a single retail proposition nearby.`
+        : `A hybrid of ${patternNames.join(' + ')} that is not a single-use ${typeLabel}.`
       : op.type === 'whitespace'
         ? 'A combination not visibly offered nearby'
         : op.type === 'destination'
           ? 'Pull from beyond the immediate catchment'
           : 'Deeper local cultural fit than copycat peers';
 
+    // Retail + discover: title should name a category or format decision, not a gathering-space concept.
+    let title: string;
+    if (hybrid && isRetail) {
+      const patternSample = patternNames.slice(0, 2).join(' + ');
+      title = isDiscoverMode
+        ? `${place} category opportunity: ${patternSample}`
+        : `${place} retail format: ${patternSample}`;
+    } else if (hybrid) {
+      title = `${place} Cultural Commons`;
+    } else {
+      title = op.title;
+    }
+
+    // Retail experienceThesis: category-mix framing, not spatial inhabitation framing.
+    let experienceThesis: string;
+    if (isRetail) {
+      experienceThesis = thesis
+        ? `Category proposition: ${op.type} for ${op.whoServes}. ${thesis}`
+        : `Category proposition: ${op.type} tailored for ${op.whoServes}.`;
+    } else {
+      experienceThesis = thesis
+        ? hybrid
+          ? thesis
+          : `Make ${op.type} tangible: a ${typeLabel} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}. ${thesis}`
+        : `Make ${op.type} tangible: a ${typeLabel} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}.`;
+    }
+
     return {
       id: generateId('strat'),
       analysisRunId: runId,
       selected: false,
       direction: op.type,
-      title: hybrid ? `${project.location.city || locLabel(project)} Cultural Commons` : op.title,
+      title,
       whoServes: op.whoServes,
       why: hybrid
         ? `${op.why} The scored pattern mix points to ${patternNames.join(', ')}, so the proposition must hold several modes at once.`
         : op.why,
-      experienceThesis: thesis
-        ? hybrid
-          ? thesis
-          : `Make ${op.type} tangible: a ${project.projectType} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}. ${thesis}`
-        : `Make ${op.type} tangible: a ${project.projectType} whose spatial sequence, atmosphere and operations exist to serve ${op.whoServes}.`,
+      experienceThesis,
       competitors: op.competitors,
       risks: op.uncertainties,
       differentiation,
       evidenceRefs: op.evidenceRefs,
       assumptions: op.assumptions,
       uncertainties: op.uncertainties,
-      physicalExperience: hybrid
-        ? allowsEvents
-          ? `A quiet everyday core, a convertible social/ceremony edge, and a public commerce threshold. Named Qloo patterns: ${anchors}.`
-          : `A quiet everyday core, a sociable hospitality edge, and a public commerce threshold — flexible for daily rituals and small groups without a programmed events hall. Named Qloo patterns: ${anchors}.`
-        : `Arrival, primary rooms and support spaces should all be judged against: ${op.why}${anchors ? ` Named Qloo patterns: ${anchors}.` : ''}`,
+      physicalExperience: isRetail
+        ? `Category mix and format: ${op.why}${anchors ? ` Named Qloo patterns: ${anchors}.` : ''}`
+        : hybrid
+          ? allowsEvents
+            ? `A quiet everyday core, a convertible social/ceremony edge, and a public commerce threshold. Named Qloo patterns: ${anchors}.`
+            : `A quiet everyday core, a sociable hospitality edge, and a public commerce threshold — flexible for daily rituals and small groups without a programmed events hall. Named Qloo patterns: ${anchors}.`
+          : `Arrival, primary rooms and support spaces should all be judged against: ${op.why}${anchors ? ` Named Qloo patterns: ${anchors}.` : ''}`,
       qlooEstablished: hybrid
         ? op.qlooEstablished?.slice(0, 3).join(', ') || undefined
         : op.qlooEstablished?.[0] || undefined,
       locallyEstablished: op.locallyEstablished?.[0] || undefined,
       inferred: op.inferred?.[0] || undefined,
-      conceptType: hybrid ? 'hybrid cultural commons' : op.type,
+      conceptType: hybrid ? (isRetail ? 'hybrid retail format' : 'hybrid cultural commons') : op.type,
       fitForAudience: op.qlooEstablished?.length
         ? `Fits ${op.whoServes} based on scored Qloo cultural signals and local context.`
         : `Fits ${op.whoServes} provisionally; Qloo cultural signals are limited.`,

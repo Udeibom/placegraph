@@ -7,7 +7,7 @@ export interface OrchestratorInput {
     guidance?: string;
 }
 export type ProgressFn = (stage: string, message: string) => void;
-export declare function compactLocation(location: any): any;
+export declare function compactLocation(location: any, maxPois?: number): any;
 export declare class AgentOrchestrator {
     private llm;
     constructor(llm?: LLMProvider);
@@ -426,6 +426,7 @@ export declare class AgentOrchestrator {
                 query: string;
                 notes: string[];
                 evidenceQuality: "strong" | "moderate" | "insufficient";
+                coverageQuality: "comprehensive" | "partial" | "sparse";
                 pois: {
                     name: string;
                     lat?: number | undefined;
@@ -1064,6 +1065,7 @@ export declare class AgentOrchestrator {
                 query: string;
                 notes: string[];
                 evidenceQuality: "strong" | "moderate" | "insufficient";
+                coverageQuality: "comprehensive" | "partial" | "sparse";
                 pois: {
                     name: string;
                     lat?: number | undefined;

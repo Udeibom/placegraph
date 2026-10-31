@@ -126,6 +126,24 @@ function contentTokens(value: string): string[] {
   )];
 }
 
+// Cultural domain terms that Qloo's taxonomy tends to resolve.
+// Used to decompose abstract descriptions into shorter, resolvable queries.
+const CULTURAL_DOMAIN_TOKENS = [
+  'fashion', 'streetwear', 'music', 'jazz', 'electronic', 'hip-hop', 'indie',
+  'art', 'design', 'architecture', 'film', 'cinema', 'photography', 'gaming',
+  'food', 'coffee', 'wine', 'cocktail', 'fitness', 'wellness', 'yoga', 'running',
+  'travel', 'tech', 'startup', 'creative', 'media', 'hospitality', 'retail',
+  'sustainability', 'luxury', 'minimalism', 'craft', 'maker', 'culture',
+];
+
+function extractCulturalTokens(text: string): string[] {
+  const lower = text.toLowerCase();
+  return [...new Set(
+    CULTURAL_DOMAIN_TOKENS.filter((token) => lower.includes(token))
+  )].slice(0, 4);
+}
+
+
 function taxonomyRelevant(query: string, candidate: QlooAudience): boolean {
   const queryTokens = contentTokens(query);
   if (!queryTokens.length) return false;
@@ -172,8 +190,12 @@ async function resolveOneAudience(
   const claims: EvidenceClaim[] = [];
   const audienceId = generateId('aud');
 
+  // Decompose into shorter cultural-domain tokens in case the full phrase is too long for Qloo taxonomy.
+  // E.g. "trend-literate 22–35 in fashion" → try "fashion", "creative"
+  const decomposedTokens = extractCulturalTokens(name + ' ' + (audience.description || ''));
+
   let taxonomy: QlooAudience | undefined;
-  for (const query of queries) {
+  for (const query of [...queries, ...decomposedTokens]) {
     const matches = await client.searchAudiences(query, 5);
     taxonomy = matches.find((match) => taxonomyRelevant(query, match));
     if (taxonomy) break;
@@ -273,20 +295,31 @@ async function resolveOneAudience(
     };
   }
 
-  const seedBatches = await Promise.all(
-    queries.map((query) => client.searchEntities(query, { take: 5 }))
-  );
+  // Seed entity search: use the description queries plus any user-supplied culturalAnchors.
+  const seedQueries = [
+    ...queries,
+    ...(audience.culturalAnchors || []).map((a) => a.trim()).filter(Boolean)
+  ];
+  const seedBatches: any[][] = [];
+  for (const query of seedQueries) {
+    seedBatches.push(await client.searchEntities(query, { take: 5 }));
+  }
   const seen = new Set<string>();
   const seeds = seedBatches
     .flat()
     .filter((entity) => {
-      if (!queries.some((query) => seedRelevant(query, entity))) return false;
+      // Cultural anchors are accepted directly; description queries still require token overlap.
+      const isAnchor = (audience.culturalAnchors || []).some(
+        (a) => entity.name?.toLowerCase().includes(a.toLowerCase().split(' ')[0])
+      );
+      if (!isAnchor && !seedQueries.some((query) => seedRelevant(query, entity))) return false;
       const key = normalizeQlooId(entity.urn || entity.id) || entity.name?.toLowerCase();
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     })
     .slice(0, 3);
+
 
   if (!seeds.length) {
     const claim = makeEvidenceClaim({
@@ -434,11 +467,13 @@ export async function resolveAudienceEvidence(
     return { audiences: [], affinities: [], claims: [], notes: ['No audiences were supplied.'] };
   }
 
-  const results = await Promise.all(
-    project.audiences.map((audience) =>
-      resolveOneAudience(audience, client, opts.locationQuery, opts.environment)
-    )
-  );
+  // Sequential resolution — not Promise.all — to avoid bursting concurrent Qloo
+  // requests (search + affinities per audience) that reliably trigger 429 at the
+  // hackathon API's per-second rate limit.
+  const results: Awaited<ReturnType<typeof resolveOneAudience>>[] = [];
+  for (const audience of project.audiences) {
+    results.push(await resolveOneAudience(audience, client, opts.locationQuery, opts.environment));
+  }
 
   return {
     audiences: results.map((result) => result.resolution),

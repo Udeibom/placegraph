@@ -3,6 +3,8 @@ export interface QlooConfig {
     apiKey: string;
     timeoutMs?: number;
     cacheTtlMs?: number;
+    /** Optional concurrency gate. Wrap each HTTP call with this to limit parallelism. */
+    throttle?: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 export interface QlooEntity {
     id?: string;
@@ -69,6 +71,7 @@ export declare class QlooClient {
     private timeoutMs;
     private cacheTtlMs;
     private cache;
+    private throttle;
     constructor(config: QlooConfig);
     get environment(): string;
     private headers;
@@ -133,6 +136,8 @@ export declare class QlooClient {
 export declare function qlooBaseUrl(): string | undefined;
 export declare function qlooEnvironmentName(): string;
 export declare function missingQlooConfigError(): QlooApiError;
-export declare function createQlooClient(): QlooClient;
+export declare function createQlooClient(opts?: {
+    throttle?: <T>(fn: () => Promise<T>) => Promise<T>;
+}): QlooClient;
 export declare function hasQlooKey(): boolean;
 export declare function normalizeQlooId(id: string | undefined): string | undefined;

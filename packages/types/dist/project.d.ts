@@ -5,14 +5,19 @@ export declare const AudienceSchema: z.ZodObject<{
     name: z.ZodString;
     priority: z.ZodOptional<z.ZodNumber>;
     description: z.ZodOptional<z.ZodString>;
+    /** Concrete cultural anchors: specific places, brands, or activities this audience frequents.
+     *  Used by Qloo resolution when the audience name/description alone is too abstract to match. */
+    culturalAnchors: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
 }, "strip", z.ZodTypeAny, {
     name: string;
     priority?: number | undefined;
     description?: string | undefined;
+    culturalAnchors?: string[] | undefined;
 }, {
     name: string;
     priority?: number | undefined;
     description?: string | undefined;
+    culturalAnchors?: string[] | undefined;
 }>;
 export declare const ConstraintSchema: z.ZodObject<{
     key: z.ZodString;
@@ -130,14 +135,19 @@ export declare const ProjectSchema: z.ZodObject<{
         name: z.ZodString;
         priority: z.ZodOptional<z.ZodNumber>;
         description: z.ZodOptional<z.ZodString>;
+        /** Concrete cultural anchors: specific places, brands, or activities this audience frequents.
+         *  Used by Qloo resolution when the audience name/description alone is too abstract to match. */
+        culturalAnchors: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     }, "strip", z.ZodTypeAny, {
         name: string;
         priority?: number | undefined;
         description?: string | undefined;
+        culturalAnchors?: string[] | undefined;
     }, {
         name: string;
         priority?: number | undefined;
         description?: string | undefined;
+        culturalAnchors?: string[] | undefined;
     }>, "many">>;
     targetAudience: z.ZodOptional<z.ZodString>;
     constraints: z.ZodDefault<z.ZodArray<z.ZodObject<{
@@ -188,6 +198,7 @@ export declare const ProjectSchema: z.ZodObject<{
         name: string;
         priority?: number | undefined;
         description?: string | undefined;
+        culturalAnchors?: string[] | undefined;
     }[];
     updatedAt?: string | undefined;
     primaryProfileId?: string | undefined;
@@ -271,6 +282,7 @@ export declare const ProjectSchema: z.ZodObject<{
         name: string;
         priority?: number | undefined;
         description?: string | undefined;
+        culturalAnchors?: string[] | undefined;
     }[] | undefined;
     targetAudience?: string | undefined;
     createdAt?: string | undefined;

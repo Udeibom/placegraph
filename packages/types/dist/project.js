@@ -14,7 +14,10 @@ export const ProjectTypeSchema = z.enum([
 export const AudienceSchema = z.object({
     name: z.string(),
     priority: z.number().int().min(1).max(3).optional(),
-    description: z.string().optional()
+    description: z.string().optional(),
+    /** Concrete cultural anchors: specific places, brands, or activities this audience frequents.
+     *  Used by Qloo resolution when the audience name/description alone is too abstract to match. */
+    culturalAnchors: z.array(z.string()).optional()
 });
 export const ConstraintSchema = z.object({
     key: z.string(),

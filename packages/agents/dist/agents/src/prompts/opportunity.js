@@ -68,7 +68,10 @@ IMPORTANT DISTINCTIONS:
 - whitespace: the project fills a gap that is culturally desired (Qloo evidence) but physically absent in the area.
 - destination: the project introduces something at a scale or specificity that would attract visitors from beyond the immediate area.
 
+POI coverage context: {poisCoverageNote}
+
 When identifying commercial gaps, only assert that a category is "absent" if the POI data explicitly contains zero results for that category AND the POI notes do not warn about incomplete data. If the POI query coverage is uncertain, describe the gap as "not evidenced in available data" rather than "absent".
+
 
 These must be meaningfully different market positions, not variations of the same interior concept with different labels. Do not pad to a fixed count.
 

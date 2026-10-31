@@ -863,6 +863,11 @@ export declare const LocationContextSchema: z.ZodObject<{
     lng: z.ZodOptional<z.ZodNumber>;
     city: z.ZodOptional<z.ZodString>;
     evidenceQuality: z.ZodDefault<z.ZodEnum<["strong", "moderate", "insufficient"]>>;
+    /** How reliable a zero-count for a category is in this dataset.
+     *  'comprehensive': high POI count, category absences are meaningful.
+     *  'partial': moderate POI count, absences should be hedged.
+     *  'sparse': low POI count, no category absence claim can be made reliably. */
+    coverageQuality: z.ZodDefault<z.ZodEnum<["comprehensive", "partial", "sparse"]>>;
     pois: z.ZodDefault<z.ZodArray<z.ZodObject<{
         name: z.ZodString;
         category: z.ZodOptional<z.ZodString>;
@@ -887,6 +892,7 @@ export declare const LocationContextSchema: z.ZodObject<{
     query: string;
     notes: string[];
     evidenceQuality: "strong" | "moderate" | "insufficient";
+    coverageQuality: "comprehensive" | "partial" | "sparse";
     pois: {
         name: string;
         lat?: number | undefined;
@@ -906,6 +912,7 @@ export declare const LocationContextSchema: z.ZodObject<{
     lng?: number | undefined;
     notes?: string[] | undefined;
     evidenceQuality?: "strong" | "moderate" | "insufficient" | undefined;
+    coverageQuality?: "comprehensive" | "partial" | "sparse" | undefined;
     pois?: {
         name: string;
         lat?: number | undefined;
@@ -1740,6 +1747,11 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         lng: z.ZodOptional<z.ZodNumber>;
         city: z.ZodOptional<z.ZodString>;
         evidenceQuality: z.ZodDefault<z.ZodEnum<["strong", "moderate", "insufficient"]>>;
+        /** How reliable a zero-count for a category is in this dataset.
+         *  'comprehensive': high POI count, category absences are meaningful.
+         *  'partial': moderate POI count, absences should be hedged.
+         *  'sparse': low POI count, no category absence claim can be made reliably. */
+        coverageQuality: z.ZodDefault<z.ZodEnum<["comprehensive", "partial", "sparse"]>>;
         pois: z.ZodDefault<z.ZodArray<z.ZodObject<{
             name: z.ZodString;
             category: z.ZodOptional<z.ZodString>;
@@ -1764,6 +1776,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         query: string;
         notes: string[];
         evidenceQuality: "strong" | "moderate" | "insufficient";
+        coverageQuality: "comprehensive" | "partial" | "sparse";
         pois: {
             name: string;
             lat?: number | undefined;
@@ -1783,6 +1796,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         lng?: number | undefined;
         notes?: string[] | undefined;
         evidenceQuality?: "strong" | "moderate" | "insufficient" | undefined;
+        coverageQuality?: "comprehensive" | "partial" | "sparse" | undefined;
         pois?: {
             name: string;
             lat?: number | undefined;
@@ -4357,6 +4371,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         query: string;
         notes: string[];
         evidenceQuality: "strong" | "moderate" | "insufficient";
+        coverageQuality: "comprehensive" | "partial" | "sparse";
         pois: {
             name: string;
             lat?: number | undefined;
@@ -4888,6 +4903,7 @@ export declare const AnalysisSnapshotSchema: z.ZodObject<{
         lng?: number | undefined;
         notes?: string[] | undefined;
         evidenceQuality?: "strong" | "moderate" | "insufficient" | undefined;
+        coverageQuality?: "comprehensive" | "partial" | "sparse" | undefined;
         pois?: {
             name: string;
             lat?: number | undefined;

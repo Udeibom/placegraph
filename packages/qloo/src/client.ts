@@ -3,6 +3,8 @@ export interface QlooConfig {
   apiKey: string;
   timeoutMs?: number;
   cacheTtlMs?: number;
+  /** Optional concurrency gate. Wrap each HTTP call with this to limit parallelism. */
+  throttle?: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
 export interface QlooEntity {
@@ -177,6 +179,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function jitterMs(ms: number, range = 300): number {
+  return Math.max(200, ms + Math.floor(Math.random() * range * 2) - range);
+}
+
+function parseRateLimitReset(headers: Headers): number | null {
+  for (const name of ['retry-after', 'x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens']) {
+    const raw = headers.get(name);
+    if (!raw) continue;
+    const seconds = parseFloat(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000);
+    const date = Date.parse(raw);
+    if (!isNaN(date)) return Math.max(0, date - Date.now());
+  }
+  return null;
+}
+
+
 function qlooEnvironment(baseUrl: string): string {
   try {
     const host = new URL(baseUrl).host;
@@ -205,12 +224,14 @@ export class QlooClient {
   private timeoutMs: number;
   private cacheTtlMs: number;
   private cache = new Map<string, { expires: number; data: any }>();
+  private throttle: <T>(fn: () => Promise<T>) => Promise<T>;
 
   constructor(config: QlooConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.apiKey = config.apiKey;
     this.timeoutMs = config.timeoutMs ?? 12000;
     this.cacheTtlMs = config.cacheTtlMs ?? 5 * 60 * 1000;
+    this.throttle = config.throttle ?? ((fn) => fn());
   }
 
   get environment(): string {
@@ -234,8 +255,7 @@ export class QlooClient {
 
   private async get<T>(
     path: string,
-    params: Record<string, string | number | boolean | undefined> = {},
-    retry = true
+    params: Record<string, string | number | boolean | undefined> = {}
   ): Promise<T> {
     const clean: Record<string, string> = {};
     for (const [key, value] of Object.entries(params)) {
@@ -243,62 +263,106 @@ export class QlooClient {
       clean[key] = String(value);
     }
 
-    const key = this.cacheKey(path, clean);
-    const cached = this.cache.get(key);
+    const cacheKey = this.cacheKey(path, clean);
+    const cached = this.cache.get(cacheKey);
     if (cached && cached.expires > Date.now()) return cached.data as T;
 
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [k, v] of Object.entries(clean)) url.searchParams.set(k, v);
+    const urlStr = url.toString();
+    const headers = this.headers();
+    const timeoutMs = this.timeoutMs;
 
-    let res: Response;
-    try {
-      res = await fetch(url.toString(), {
-        method: 'GET',
-        headers: this.headers(),
-        signal: AbortSignal.timeout(this.timeoutMs)
-      });
-    } catch (err) {
+    // Exponential backoff constants: [1s, 2s, 4s] + jitter
+    const BACKOFFS = [1_000, 2_000, 4_000];
+    const MAX_RETRIES = 3;
+
+    const data = await this.throttle(async () => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        let res: Response;
+        try {
+          res = await fetch(urlStr, {
+            method: 'GET',
+            headers,
+            signal: AbortSignal.timeout(timeoutMs)
+          });
+        } catch (err) {
+          lastError = err;
+          if (attempt < MAX_RETRIES - 1) {
+            await sleep(jitterMs(BACKOFFS[Math.min(attempt, BACKOFFS.length - 1)]));
+            continue;
+          }
+          throw new QlooApiError({
+            kind: 'upstream',
+            endpoint: path,
+            retryable: true,
+            environment: this.environment,
+            message: `Qloo request failed before a response: ${String(err)}`
+          });
+        }
+
+        if (res.ok) {
+          let parsed: T;
+          try {
+            parsed = (await res.json()) as T;
+          } catch (err) {
+            throw new QlooApiError({
+              kind: 'parse',
+              endpoint: path,
+              status: res.status,
+              environment: this.environment,
+              message: `Qloo returned invalid JSON: ${String(err)}`
+            });
+          }
+          return parsed;
+        }
+
+        const text = await res.text().catch(() => '');
+        const { kind, retryable } = classifyStatus(res.status);
+
+        if (res.status === 429 && attempt < MAX_RETRIES - 1) {
+          // Respect rate-limit headers; fall back to backoff
+          const headerWait = parseRateLimitReset(res.headers);
+          const waitMs = jitterMs(Math.max(
+            BACKOFFS[Math.min(attempt, BACKOFFS.length - 1)],
+            headerWait ?? 0
+          ));
+          console.info(
+            `[qloo] 429 rate limit (attempt ${attempt + 1}/${MAX_RETRIES}); waiting ${Math.round(waitMs / 1000)}s`
+          );
+          await sleep(waitMs);
+          lastError = new Error(`Rate limited: ${text.slice(0, 120)}`);
+          continue;
+        }
+
+        if (retryable && res.status >= 500 && attempt < MAX_RETRIES - 1) {
+          await sleep(jitterMs(BACKOFFS[Math.min(attempt, BACKOFFS.length - 1)]));
+          lastError = new Error(`Upstream error ${res.status}`);
+          continue;
+        }
+
+        throw new QlooApiError({
+          kind: res.status === 429 ? 'rate_limit' : kind,
+          endpoint: path,
+          status: res.status,
+          retryable,
+          environment: this.environment,
+          message: `Qloo API error ${res.status}: ${text.slice(0, 300)}`
+        });
+      }
+
       throw new QlooApiError({
-        kind: 'upstream',
+        kind: 'rate_limit',
         endpoint: path,
         retryable: true,
         environment: this.environment,
-        message: `Qloo request failed before a response: ${String(err)}`
+        message: `Qloo rate limit: all ${MAX_RETRIES} retries exhausted. ${String(lastError)}`
       });
-    }
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      const { kind, retryable } = classifyStatus(res.status);
-      if (retryable && retry) {
-        await sleep(res.status === 429 ? 750 : 250);
-        return this.get<T>(path, params, false);
-      }
-      throw new QlooApiError({
-        kind,
-        endpoint: path,
-        status: res.status,
-        retryable,
-        environment: this.environment,
-        message: `Qloo API error ${res.status}: ${text.slice(0, 300)}`
-      });
-    }
-
-    let data: T;
-    try {
-      data = (await res.json()) as T;
-    } catch (err) {
-      throw new QlooApiError({
-        kind: 'parse',
-        endpoint: path,
-        status: res.status,
-        environment: this.environment,
-        message: `Qloo returned invalid JSON: ${String(err)}`
-      });
-    }
+    });
 
     if (this.cacheTtlMs > 0) {
-      this.cache.set(key, { expires: Date.now() + this.cacheTtlMs, data });
+      this.cache.set(cacheKey, { expires: Date.now() + this.cacheTtlMs, data });
     }
     return data;
   }
@@ -745,14 +809,16 @@ export function missingQlooConfigError(): QlooApiError {
   });
 }
 
-export function createQlooClient(): QlooClient {
+export function createQlooClient(
+  opts?: { throttle?: <T>(fn: () => Promise<T>) => Promise<T> }
+): QlooClient {
   const baseUrl =
     process.env.QLOO_API_BASE_URL ||
     (process.env.NODE_ENV === 'production' ? '' : 'https://hackathon.api.qloo.com');
   const apiKey = process.env.QLOO_API_KEY || '';
   if (!baseUrl) throw missingQlooConfigError();
   if (!apiKey) throw missingQlooConfigError();
-  return new QlooClient({ baseUrl, apiKey });
+  return new QlooClient({ baseUrl, apiKey, throttle: opts?.throttle });
 }
 
 export function hasQlooKey(): boolean {

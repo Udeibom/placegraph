@@ -19,6 +19,8 @@ import type {
 import { makeEvidenceClaim } from './claim';
 import { resolveAudienceEvidence, unresolvedAudienceEvidence } from './audiences';
 import { deriveCulturalPatterns, projectAllowsEventProgramming } from './cultural-patterns';
+import { getQlooRequestQueue } from './request-queue';
+
 
 function failureFrom(err: unknown, environment: string): QlooFailure {
   if (err instanceof QlooApiError) {
@@ -159,7 +161,8 @@ export async function gatherQlooContext(
     return emptyQlooContext(project, 'unavailable', failureFrom(missingQlooConfigError(), 'missing'));
   }
 
-  const client = createQlooClient();
+  const client = createQlooClient({ throttle: getQlooRequestQueue().run.bind(getQlooRequestQueue()) });
+
   const environment = client.environment;
   const city = project.location.city?.trim();
 
@@ -235,10 +238,12 @@ export async function gatherQlooContext(
     };
 
     // 3. Resolve audience taxonomy and scored place affinities.
+    // Sequential — not Promise.all — to avoid bursting concurrent Qloo requests and triggering 429.
     const audienceResult = await resolveAudienceEvidence(project, client, {
       locationQuery: resolvedLocation,
       environment
     });
+
     const audienceAffinities = audienceAffinityMap(audienceResult.audiences);
 
     const anchorAffinities = (

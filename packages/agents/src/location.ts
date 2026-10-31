@@ -137,6 +137,9 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
   const evidenceQuality =
     pois.length >= 8 ? 'strong' : pois.length >= 3 || displayName ? 'moderate' : 'insufficient';
 
+  const coverageQuality: 'comprehensive' | 'partial' | 'sparse' =
+    pois.length >= 15 ? 'comprehensive' : pois.length >= 5 ? 'partial' : 'sparse';
+
   return {
     query,
     displayName,
@@ -144,6 +147,7 @@ export async function gatherLocationContext(project: Project): Promise<LocationC
     lng,
     city,
     evidenceQuality,
+    coverageQuality,
     pois,
     notes
   };

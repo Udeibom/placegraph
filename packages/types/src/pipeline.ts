@@ -240,6 +240,11 @@ export const LocationContextSchema = z.object({
   lng: z.number().optional(),
   city: z.string().optional(),
   evidenceQuality: z.enum(['strong', 'moderate', 'insufficient']).default('moderate'),
+  /** How reliable a zero-count for a category is in this dataset.
+   *  'comprehensive': high POI count, category absences are meaningful.
+   *  'partial': moderate POI count, absences should be hedged.
+   *  'sparse': low POI count, no category absence claim can be made reliably. */
+  coverageQuality: z.enum(['comprehensive', 'partial', 'sparse']).default('partial'),
   pois: z.array(PlacePoiSchema).default([]),
   notes: z.array(z.string()).default([])
 });

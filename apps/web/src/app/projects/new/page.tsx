@@ -25,8 +25,9 @@ const OPERATOR_TYPES = [
 
 const PRIORITY_LABELS = ['Primary', 'Secondary', 'Tertiary'];
 
-const emptyAudience  = { name: '', description: '', priority: 1 as number };
+const emptyAudience  = { name: '', description: '', priority: 1 as number, culturalAnchors: '' };
 const emptyConstraint = { key: '', value: '', type: 'text' as const };
+
 
 function StepDot({ n, active, done }: { n: number; active: boolean; done: boolean }) {
   return (
@@ -66,6 +67,7 @@ export default function NewProject() {
     constraints:     [{ ...emptyConstraint }],
   });
 
+
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -91,9 +93,19 @@ export default function NewProject() {
         projectType:  form.mode === 'discover' ? 'other' : form.projectType,
         businessType: form.mode === 'discover' ? '' : form.businessType,
         operatorType: form.operatorType || undefined,
-        audiences:    form.audiences.filter((a) => a.name.trim()),
+        audiences:    form.audiences
+          .filter((a) => a.name.trim())
+          .map((a) => ({
+            name: a.name,
+            description: a.description,
+            priority: a.priority,
+            culturalAnchors: a.culturalAnchors
+              ? a.culturalAnchors.split(',').map((s) => s.trim()).filter(Boolean)
+              : undefined,
+          })),
         constraints:  form.constraints.filter((c) => c.key.trim() && c.value.trim()),
       } as Parameters<typeof createProject>[0]);
+
       router.push(`/projects/${project.id}`);
     } catch (e) {
       setError(String(e));
@@ -397,6 +409,23 @@ export default function NewProject() {
                       next[i] = { ...a, description: e.target.value };
                       update('audiences', next);
                     }} />
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-2)', marginBottom: '0.25rem' }}>
+                      Cultural anchors <span style={{ color: 'var(--muted-2)', fontWeight: 400 }}>(optional — helps Qloo resolve this audience)</span>
+                    </label>
+                    <input className="pg-input"
+                      placeholder="e.g. Ace Hotel, Ottolenghi, The Wing, Aesop"
+                      value={a.culturalAnchors}
+                      onChange={(e) => {
+                        const next = [...form.audiences];
+                        next[i] = { ...a, culturalAnchors: e.target.value };
+                        update('audiences', next);
+                      }} />
+                    <p style={{ fontSize: '0.7rem', color: 'var(--muted-2)', marginTop: '0.25rem' }}>
+                      Specific places, brands, or activities this audience frequents — comma-separated. Used when a description alone is too abstract for Qloo to match.
+                    </p>
+                  </div>
+
                 </div>
               ))}
             </div>

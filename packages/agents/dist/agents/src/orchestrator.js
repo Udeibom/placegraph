@@ -182,19 +182,18 @@ function compactProject(project) {
         decisionFrame: project.decisionFrame
     };
 }
-export function compactLocation(location) {
+export function compactLocation(location, maxPois = 20) {
     if (!location)
         return location;
     const allPois = Array.isArray(location.pois) ? location.pois : [];
-    const limit = 60;
     return {
         query: location.query,
         displayName: location.displayName,
         city: location.city,
         evidenceQuality: location.evidenceQuality,
         poiCount: allPois.length,
-        poiLimitApplied: allPois.length > limit,
-        pois: allPois.slice(0, limit).map((p) => ({
+        poiLimitApplied: allPois.length > maxPois,
+        pois: allPois.slice(0, maxPois).map((p) => ({
             name: p.name,
             category: p.category,
             distanceM: p.distanceM
@@ -357,6 +356,25 @@ function compactPromptLandscapes(landscapes) {
         proposed: slim(landscapes.proposed)
     };
 }
+/** Tighter version of compactPromptLandscapes for opportunity/strategy prompts.
+ *  Strips experience arrays; only passes summary and gaps to reduce token footprint. */
+function compactPromptLandscapesSummary(landscapes) {
+    if (!landscapes)
+        return landscapes;
+    const slim = (landscape) => landscape
+        ? {
+            type: landscape.type,
+            summary: trimText(landscape.summary, 300),
+            gaps: (landscape.gaps || []).slice(0, 2).map((item) => trimText(item, 120)),
+            evidenceQuality: landscape.evidenceQuality
+        }
+        : landscape;
+    return {
+        existing: slim(landscapes.existing),
+        potential: slim(landscapes.potential),
+        proposed: slim(landscapes.proposed)
+    };
+}
 function compactPromptOpportunities(opportunities) {
     return (Array.isArray(opportunities) ? opportunities : []).map((op) => ({
         type: op.type,
@@ -409,26 +427,35 @@ function affinitySummary(project, qloo) {
         .join(', ')}. These are cultural relationships, not a demand forecast.${patternLabels ? ` Pattern mix: ${patternLabels}.` : ''}`;
 }
 function assertSpatialTranslationAllowed(project, analysis, strategy) {
-    if (analysis.evidenceGate && !analysis.evidenceGate.allowConfidentRecommendation) {
-        throw new Error(`Spatial translation is blocked by the evidence gate: ${analysis.evidenceGate.blockedReason || 'evidence is insufficient for a confident recommendation.'}`);
+    // GATE 1 — Dimensional data: required for any spatial output at all.
+    // Without dimensions or constraints there is nothing to translate spatially.
+    const hasDimensions = Boolean(project.floorArea) ||
+        Boolean(project.floorPlanUrl) ||
+        project.constraints.length > 0;
+    if (!hasDimensions) {
+        throw new Error('Spatial translation requires at least a declared floor area, an uploaded floor plan, or operating constraints. None were provided.');
     }
+    // GATE 2 — Commercial evidence: required for a full spatial concept endorsement.
+    // When the evidence gate is failed/missing, spatial translation is limited to
+    // constraint translation and zone implications — no commercial concept is endorsed.
+    // We do NOT throw here; instead we annotate the result as degraded downstream.
+    const commercialGatePassed = !analysis.evidenceGate || analysis.evidenceGate.allowConfidentRecommendation;
+    // GATE 3 — Eligible opportunity: required for the full translate-strategy path.
     const eligible = analysis.opportunities.filter((opportunity) => opportunity.eligible !== false);
-    if (!eligible.length) {
+    if (!eligible.length && commercialGatePassed) {
         throw new Error('Spatial translation requires at least one evidence-eligible opportunity.');
     }
     const selectedOpportunity = eligible.find((opportunity) => opportunity.id === strategy.opportunityId) || eligible[0];
-    if (!selectedOpportunity) {
+    if (!selectedOpportunity && commercialGatePassed) {
         throw new Error('Spatial translation requires a selected opportunity.');
     }
-    if (!project.floorArea) {
-        throw new Error('Spatial translation requires a declared floor area.');
-    }
+    // GATE 4 — Floor plan usable: required for concept-level spatial output.
+    // Not a hard throw: we allow typological spatial output when a brief exists but no usable plan.
     if (!analysis.floorPlan) {
         throw new Error('Spatial translation requires a floor plan reading or dimensional brief.');
     }
-    if (!analysis.floorPlan.usable) {
-        throw new Error('Spatial translation requires usable floor plan or dimensional geometry.');
-    }
+    // analysis.floorPlan.usable may be false when only text constraints exist.
+    // This is acceptable for preliminary spatial output — the orchestrator will label it accordingly.
 }
 function compactFloorPlan(floorPlan) {
     if (!floorPlan)
@@ -754,8 +781,19 @@ export class AgentOrchestrator {
         // Keep prompts within the Groq free-tier token budget (8k TPM per model).
         const llmFailures = [];
         const promptProject = compactProject(input.project);
-        const promptLocation = compactLocation(locationContext);
+        // Tighter POI limit for downstream prompts to stay under token budget.
+        const promptLocation = compactLocation(locationContext, 20);
         const promptQloo = compactQloo(qlooContext);
+        // When Qloo failed or is missing, replace the cultural context for prompts with
+        // a clearly-labelled shell so the LLM cannot generate spurious cultural conclusions.
+        const qlooFailed = gate.qlooStatus === 'failed' || gate.qlooStatus === 'missing';
+        const gatedPromptQloo = qlooFailed
+            ? { source: qlooContext.source, insufficient: true, affinities: [], culturalPatterns: [], culturalThesis: '', audienceAffinities: {}, crossDomain: null, notes: [`QLOO_UNAVAILABLE: ${qlooContext.failure?.message || 'Qloo did not return evidence for this analysis.'} Do not generate cultural conclusions, affinity-based claims, or cultural whitespace assertions. Reason only from location data and the project brief.`] }
+            : compactPromptQloo(qlooContext);
+        // System-prompt suffix for cultural stages when Qloo failed.
+        const noQlooSystem = qlooFailed
+            ? 'IMPORTANT: Qloo cultural intelligence is unavailable for this analysis. You MUST NOT generate: cultural affinity claims, cultural pattern conclusions, audience cultural fit assessments, or whitespace assertions based on cultural evidence. Describe only what is directly observable from location data and the project brief. Mark any cultural framing as absent.'
+            : undefined;
         const { profiles: organisationProfiles, primaryProfileId: resolvedPrimaryProfileId } = resolveOrganisationProfiles(input.project);
         const decisionFrame = resolveDecisionFrame(input.project);
         const relationshipResult = deriveCulturalRelationships({
@@ -812,27 +850,28 @@ export class AgentOrchestrator {
             const placeInvPrompt = replaceVars(PLACE_INVESTIGATION_PROMPT, {
                 project: promptProject,
                 locationContext: promptLocation,
-                qlooContext: compactPromptQloo(qlooContext),
+                qlooContext: gatedPromptQloo,
             });
-            const placeInvResult = await this.json(placeInvPrompt, placeInvFallback, undefined, 1600);
+            const placeInvResult = await this.json(placeInvPrompt, placeInvFallback, noQlooSystem, 1600);
             if (placeInvResult.failure)
                 llmFailures.push({ stage: 'place_resolution', failure: placeInvResult.failure });
             snapshot.placeProfile = normalizePlaceProfile(placeInvResult.value);
         }
         onProgress?.('opportunity', 'Comparing existing, potential and proposed cultural landscapes…');
         const landscapeFallback = fallbackLandscapes(input.project, snapshot);
+        // Do NOT pass audienceAffinities separately — it duplicates data already in qlooContext and inflates the prompt.
         const landscapePrompt = replaceVars(LANDSCAPE_PROMPT, {
             project: promptProject,
             locationContext: promptLocation,
             qlooContext: promptQloo,
-            audienceAffinities: JSON.stringify(promptQloo.audienceAffinities ?? {})
+            audienceAffinities: ''
         });
         const landscapeResult = await this.json(landscapePrompt, { landscapes: landscapeFallback, audienceAnalysis: {
                 shared: input.project.audiences.map((a) => a.name),
                 complementary: [],
                 conflicting: [],
                 spatialImplications: 'Shared affinities should inform public rooms; conflicting ones need separate zones.'
-            } }, undefined, 2000);
+            } }, noQlooSystem, 2000);
         if (landscapeResult.failure)
             llmFailures.push({ stage: 'opportunities', failure: landscapeResult.failure });
         const landscapeJson = landscapeResult.value;
@@ -860,20 +899,31 @@ export class AgentOrchestrator {
         });
         onProgress?.('opportunity', 'Forming opportunity hypotheses…');
         const oppFallback = fallbackOpportunities(input.project, runId, snapshot);
+        // Compact landscapes further for opportunity prompt — only summary + gaps (not experience arrays)
+        const poisCoverageNote = (() => {
+            const q = locationContext.coverageQuality ?? 'partial';
+            const n = locationContext.pois.length;
+            if (q === 'comprehensive')
+                return `${n} POIs retrieved. Coverage is comprehensive; category absences in this data are meaningful.`;
+            if (q === 'partial')
+                return `${n} POIs retrieved. Coverage is partial; category absences should be described as "not evidenced in available data", not asserted as confirmed gaps.`;
+            return `${n} POIs retrieved. Coverage is sparse; no category absence claim can be made reliably from this dataset.`;
+        })();
         const oppPrompt = replaceVars(OPPORTUNITY_ANALYSIS_PROMPT, {
             mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
             operatorContext: input.project.operatorType
                 ? `Operator type: ${input.project.operatorType}. Tailor opportunity types to decisions this type of operator actually makes.`
                 : '',
             project: promptProject,
-            landscapes: compactPromptLandscapes(snapshot.landscapes),
+            landscapes: compactPromptLandscapesSummary(snapshot.landscapes),
             audienceAnalysis: snapshot.audienceAnalysis,
-            locationContext: promptLocation,
-            qlooContext: compactPromptQloo(qlooContext),
-            relationships: compactRelationships(relationshipResult.relationships),
-            hardConstraints: constraintPrompt(input.project)
+            locationContext: compactLocation(locationContext, 10),
+            qlooContext: gatedPromptQloo,
+            relationships: qlooFailed ? [] : compactRelationships(relationshipResult.relationships),
+            hardConstraints: constraintPrompt(input.project),
+            poisCoverageNote
         }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
-        const oppResult = await this.json(oppPrompt, { opportunities: oppFallback }, undefined, 2200);
+        const oppResult = await this.json(oppPrompt, { opportunities: oppFallback }, noQlooSystem, 2200);
         if (oppResult.failure)
             llmFailures.push({ stage: 'opportunities', failure: oppResult.failure });
         const oppJson = oppResult.value;
@@ -893,13 +943,13 @@ export class AgentOrchestrator {
             mode: isDiscoverMode ? 'DISCOVER' : 'EVALUATE',
             project: promptProject,
             opportunities: compactPromptOpportunities(snapshot.opportunities),
-            landscapes: compactPromptLandscapes(snapshot.landscapes),
+            landscapes: compactPromptLandscapesSummary(snapshot.landscapes),
             audienceAnalysis: snapshot.audienceAnalysis,
-            qlooContext: compactPromptQloo(qlooContext),
-            relationships: compactRelationships(relationshipResult.relationships),
+            qlooContext: gatedPromptQloo,
+            relationships: qlooFailed ? [] : compactRelationships(relationshipResult.relationships),
             hardConstraints: constraintPrompt(input.project)
         }) + (input.guidance ? `\nAdditional professional guidance:\n${input.guidance}` : '');
-        let stratResult = await this.json(stratPrompt, { strategies: stratFallback }, undefined, 2200);
+        let stratResult = await this.json(stratPrompt, { strategies: stratFallback }, noQlooSystem, 2200);
         if (stratResult.failure)
             llmFailures.push({ stage: 'strategies', failure: stratResult.failure });
         // A single strategy is valid. Only retry when the model returned no array at all.
